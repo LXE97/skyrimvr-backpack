@@ -1,14 +1,15 @@
 #pragma once
 #pragma warning(push)
-#pragma warning(disable : 4100)
-#pragma warning(disable : 4189)
-#pragma warning(disable : 4244) // double to float
-#pragma warning(disable : 4245) // signed to unsigned
-#pragma warning(disable : 4305)
-#pragma warning(disable : 5105)
+#pragma warning(disable: 4100)
+#pragma warning(disable: 4189)
+#pragma warning(disable: 4244)  // double to float
+#pragma warning(disable: 4245)  // signed to unsigned
+#pragma warning(disable: 4305)
+#pragma warning(disable: 5105)
 
 #include "RE/Skyrim.h"
 #include "SKSE/SKSE.h"
+
 #include <REL/Relocation.h>
 
 using namespace std::literals;

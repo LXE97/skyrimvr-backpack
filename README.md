@@ -1,4 +1,10 @@
-## (WIP) SKSE plugin source for Skyrim mod: VR Backpack
+## SKSE plugin source for Skyrim mod: Backpack VR
+
+### User requirements:
+* SKSE
+* Skyrim VR Tools
+* Address Library VR
+
 
 ## Build instructions:
 1. install [vcpkg](https://github.com/microsoft/vcpkg)
@@ -7,4 +13,4 @@
 4. install VSCode
 5. open this repository's root folder in VSCode and it will automatically configure itself.
 
-based on project template: https://github.com/SkyrimScripting/SKSE_Template_MultipleSourceAndHeaderFiles
+thanks to mrowrpurr & [github.com/SkyrimScripting](https://github.com/SkyrimScripting) for cmake templates
