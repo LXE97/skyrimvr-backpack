@@ -1,0 +1,79 @@
+object reference - activator in mod world space
+
+* move obj to player hand position
+** rotation?
+
+* inventory items:
+** add artobects to backpackobj
+** check bounds
+** draw center point on item
+** EXTRA DATA:
+*** save position as nipoint
+*** save rotation - quat?
+*** STACKING ITEMS?? write to individuial extra data? test on arrows, ingots, etc
+
+* LOOTING:
+** 1 drop to HIGGS on pickup
+** 2 drop to ground on pickup -> try front of player. raycast to floor for safety/drop distance. alternate between left/ right angles if dropped too far.
+** 3 
+
+* exterior "holsters" - sides, top, bottom?
+** snap weapons and too big items 
+** survival mods/ special tools? campfire kit, bedroll etc
+
+* override activator text
+** display info: weight, size, value, name
+** split stack
+** drop
+** favorite
+** equip directly
+
+* page system
+** formlist? some kind of filter
+** gesture / button switching
+** remember which page we were on (until game load?)
+** interaction: buttons 
+** categories:
+recent
+alchemy
+consumable
+weapons
+armor
+soul gems
+misc
+
+** special compartments:
+*** keys
+*** 
+
+*  quest items:
+** unique "grab" handler , no HIGGS fingers (easiest)
+** try to force drop and force put back
+
+
+* HIGGS grabbing:
+** rotate/ translate to match inventory position
+
+
+2 modes:
+
+Natural - (Into the Radius) items are 1:1 and 
+* oversized items may be scaled to fit inside the pack space
+
+Minified - (Saints & Sinners) all items are scaled and aligned to a uniform grid
+
+
+Mode can be specified on a per-category or per-compartment basis 
+
+
+
+
+Auxilliary mods:
+
+Flask - combine potions
+soul gem combiner
+scroll combinator
+
+
+
+ 
