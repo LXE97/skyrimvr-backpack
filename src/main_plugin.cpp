@@ -8,67 +8,7 @@ namespace backpackvr
 {
 	using namespace helper;
 	using namespace art_addon;
-
-	struct BackpackItemView
-	{
-		enum class Type
-		{
-			kNatural,
-			kMinified
-		};
-
-		BackpackItemView(Type type, TESBoundObject* base, int count, ExtraDataList* extradata,
-			ArtAddonPtr model) :
-			type(type),
-			base(base),
-			count(count),
-			extradata(extradata),
-			model(model){};
-
-		Type            type;
-		TESBoundObject* base;
-		int             count;
-		ExtraDataList*  extradata;
-		ArtAddonPtr     model;
-	};
-
-	struct BackpackEvent
-	{
-		enum class kEventType
-		{
-			kNone,
-			kDrop,
-			kIgnoreNextDropEvent
-		};
-		virtual kEventType GetType() = 0;
-		virtual ~BackpackEvent() = default;
-	};
-
-	struct BackpackDropEvent : public BackpackEvent
-	{
-		BackpackDropEvent(
-			RE::TESBoundObject* a_base_object, RE::ExtraDataList* a_extradata, int a_count) :
-			to_drop(a_base_object),
-			extradata(a_extradata),
-			count(a_count){};
-
-		RE::TESBoundObject* to_drop = nullptr;
-		RE::ExtraDataList*  extradata = nullptr;
-		int                 count = 0;
-
-		kEventType GetType() { return kEventType::kDrop; }
-	};
-
-	struct BackpackIgnoreNextDropEvent : public BackpackEvent
-	{
-		kEventType GetType() { return kEventType::kIgnoreNextDropEvent; }
-	};
-
-	struct BackpackAnimation
-	{};
-
-	RE::TESBoundObject* g_backpack_obj;
-	PapyrusVRAPI*       g_papyrusvr;
+	using namespace backpack;
 
 	// user settings, documented in .ini
 	bool  g_debug_print = true;
@@ -79,72 +19,56 @@ namespace backpackvr
 	bool g_left_hand_mode = false;
 	bool g_use_firstperson = false;
 
+	// TODO - move state to backpack manager
 	// state
-	bool               g_movepack = false;
-	RE::TESObjectREFR* g_backpack_player_objref = nullptr;
-	RE::TESObjectREFR* g_marker_disable_objref = nullptr;
-	bool               g_override_rollover_position = false;
-	RE::NiPoint3       g_rollover_default_hand_pos;
-	RE::NiMatrix3      g_rollover_default_hand_rot;
+	bool                  g_movepack = false;
+	std::vector<Backpack> g_backpacks;
+	Backpack*             g_active_backpack[2] = { nullptr };
+	RE::TESObjectREFR*    g_marker_disable_objref = nullptr;
+	bool                  g_override_rollover_position = false;
+	RE::NiPoint3          g_rollover_default_hand_pos;
+	RE::NiMatrix3         g_rollover_default_hand_rot;
 
 	// temp debug state
 	std::deque<std::unique_ptr<BackpackEvent>> g_backpack_event_queue;
-	std::vector<BackpackItemView>              g_backpack_item_visible;
 
 	// resources
 	const RE::FormID g_backpack_player_objref_id = 0xD96;
+	const RE::FormID g_backpack_player_objref_id2 = 0x804;
+	const RE::FormID g_backpack_NPC_objref_id = 0x803;
 	const RE::FormID g_marker_modspace_id = 0x801;
+	const RE::FormID g_player = 0x14;
+	const RE::FormID g_lydia = 0xa2c94;
 
-	std::string g_mod_name = "BackpackVR.esp";
+	std::string mod_name = backpack::g_mod_name ;//"BackpackVR.esp";
 	std::string g_backpack_grab_nodename = "GrabNode";
-	std::string g_backpack_container_nodename = "Box";
-	std::string g_backpack_container_extentname = "extent";
+
 	// ty atom
 	std::string g_rollover_nodename = "WSActivateRollover";
 
-	// TODO:: this should be a member of Backpack class and read the geometry data from the model
-	int   mini_items_per_row = 5;
-	float mini_horizontal_spacing = 2;
-	float mini_width = 30;
-	float mini_height = 40;
-	float mini_item_desired_radius = 0;
-	float mini_items_per_column = 0;
-	float mini_vertical_spacing = 0;
-
-	void ResetRollover();
-
-	void CalculateLayout()
-	{
-		mini_item_desired_radius =
-			(mini_width / mini_items_per_row - mini_horizontal_spacing) * 0.5;
-
-		mini_items_per_column =
-			std::floor(mini_height / (2 * mini_item_desired_radius + mini_horizontal_spacing));
-
-		mini_vertical_spacing =
-			(mini_height - mini_items_per_column * 2 * mini_item_desired_radius) /
-			mini_items_per_column;
-	}
+	RE::TESBoundObject* g_backpack_obj;
+	PapyrusVRAPI*       g_papyrusvr;
 
 	bool debug_grab(const vrinput::ModInputEvent& e)
 	{
 		if (e.button_state == vrinput::ButtonState::kButtonDown)
 		{
-			if (g_backpack_player_objref)
+			if (!g_backpacks.empty())
 			{
-				if (!g_backpack_player_objref->Is3DLoaded())
+				if (!g_backpacks.front().object->Is3DLoaded())
 				{
-					DisableRollover(g_backpack_player_objref, true, true);
-					g_backpack_player_objref->SetActivationBlocked(true);
-					g_backpack_player_objref->MoveTo(RE::PlayerCharacter::GetSingleton());
-					SetRolloverObject(g_backpack_player_objref, g_backpack_obj);
+					
+					//g_backpacks.front().object->SetActivationBlocked(true);
+					g_backpacks.front().object->MoveTo(RE::PlayerCharacter::GetSingleton());
+					SetRolloverObject(g_backpacks.front().object, g_backpack_obj);
 					ResetRollover();
+					DisableRollover(g_backpacks.front().object, true, true);
 					g_movepack = true;
 				}
 				else
 				{
 					MoveBackpack();
-					g_backpack_player_objref->data.angle = RE::NiPoint3();
+					g_backpacks.front().object->data.angle = RE::NiPoint3();
 					g_movepack = true;
 				}
 			}
@@ -241,9 +165,9 @@ namespace backpackvr
 
 	void MoveBackpack()
 	{
-		if (g_backpack_player_objref)
+		if (g_backpacks.front().object->Is3DLoaded())
 		{
-			if (auto backpacknode = g_backpack_player_objref->GetCurrent3D())
+			if (auto backpacknode = g_backpacks.front().object->GetCurrent3D())
 			{
 				if (auto grabnode = backpacknode->GetObjectByName(g_backpack_grab_nodename))
 				{
@@ -347,21 +271,6 @@ namespace backpackvr
 		else { ResetRollover(); }
 	}
 
-	void ResetRollover()
-	{
-		g_override_rollover_position = false;
-		if (auto rollover_node =
-				PlayerCharacter::GetSingleton()->GetVRNodeData()->RoomNode->GetObjectByName(
-					g_rollover_nodename))
-		{
-			rollover_node->local.translate = g_rollover_default_hand_pos;
-			rollover_node->local.rotate = g_rollover_default_hand_rot;
-
-			NiUpdateData ctx;
-			rollover_node->Update(ctx);
-		}
-	}
-
 	void QueueDrop(RE::TESBoundObject* a_base_object, RE::ExtraDataList* a_extradata, int a_count)
 	{
 		g_backpack_event_queue.push_back(
@@ -450,8 +359,6 @@ namespace backpackvr
 		}
 	}
 
-	int GetObjectReferenceCount();
-
 	void AddObjectRefToInventory(TESObjectREFR* a_held_object, TESObjectREFR* a_new_owner)
 	{
 		if (a_held_object && a_new_owner && a_new_owner->As<Actor>())
@@ -471,70 +378,76 @@ namespace backpackvr
 
 	void OnHiggsDrop(bool isLeft, TESObjectREFR* droppedRefr)
 	{
-		// TODO: check if backpack is active
-		if (g_backpack_player_objref && droppedRefr)
+		if (auto backpack = g_active_backpack[isLeft])
 		{
-			if (auto backpack_node = g_backpack_player_objref->GetCurrent3D()->GetObjectByName(
-					g_backpack_container_nodename))
+			if (backpack->object && droppedRefr)
 			{
-				if (auto box_size = backpack_node->GetExtraData<NiVectorExtraData>(
-						g_backpack_container_extentname))
+				if (auto backpack_node = backpack->object->GetCurrent3D()->GetObjectByName(
+						g_backpack_container_nodename))
 				{
-					NiPoint3 temp = { box_size->m_vector[0], box_size->m_vector[1],
-						box_size->m_vector[2] };
-
-					NiPoint3 location;
-					if (auto drop_geo = droppedRefr->GetCurrent3D()->GetFirstGeometryOfShaderType(
-							BSShaderMaterial::Feature::kEnvironmentMap))
+					if (auto box_size = backpack_node->GetExtraData<NiVectorExtraData>(
+							g_backpack_container_extentname))
 					{
-						auto test_loc = droppedRefr->data.location;
-						location = drop_geo->worldBound.center;
-					}
-					else
-					{
-						location = isLeft ? PlayerCharacter::GetSingleton()
-												->GetVRNodeData()
-												->LeftWandNode->world.translate :
-											PlayerCharacter::GetSingleton()
-												->GetVRNodeData()
-												->RightWandNode->world.translate;
-					}
+						NiPoint3 temp = { box_size->m_vector[0], box_size->m_vector[1],
+							box_size->m_vector[2] };
 
-					if (TestBoxCollision(backpack_node->world, temp, location))
-					{
-						// get object transform relative to backpack space
-						auto new_local =
-							WorldToLocal(backpack_node->world, droppedRefr->GetCurrent3D()->world);
-
-						// write to extra data
-						ClearTransformData(droppedRefr);
-						WriteTransformData(droppedRefr, new_local);
-						g_backpack_event_queue.push_back(
-							std::make_unique<BackpackIgnoreNextDropEvent>());
-
-						// apply model to backpack
-						if (auto modelstr = GetObjectModelPath(droppedRefr))
+						NiPoint3 location;
+						if (auto drop_geo =
+								droppedRefr->GetCurrent3D()->GetFirstGeometryOfShaderType(
+									BSShaderMaterial::Feature::kEnvironmentMap))
 						{
-							g_backpack_item_visible.push_back(BackpackItemView(
-								BackpackItemView::Type::kNatural, droppedRefr->GetObjectReference(),
-								droppedRefr->extraList.GetCount(), &(droppedRefr->extraList),
-								ArtAddon::Make(modelstr, g_backpack_player_objref, backpack_node,
-									new_local, [](ArtAddon* a) {
-										if (auto model = a->Get3D())
-										{
-											if (model->worldBound.radius > g_maximum_item_radius)
-											{
-												// scale the model
-												model->local.scale = g_maximum_item_radius /
-													model->worldBound.radius;
-											}
-											model->local.scale = 0.5;
-										}
-									})));
+							auto test_loc = droppedRefr->data.location;
+							location = drop_geo->worldBound.center;
+						}
+						else
+						{
+							location = isLeft ? PlayerCharacter::GetSingleton()
+													->GetVRNodeData()
+													->LeftWandNode->world.translate :
+												PlayerCharacter::GetSingleton()
+													->GetVRNodeData()
+													->RightWandNode->world.translate;
 						}
 
-						// add to player inventory
-						AddObjectRefToInventory(droppedRefr, RE::PlayerCharacter::GetSingleton());
+						if (TestBoxCollision(backpack_node->world, temp, location))
+						{
+							// get object transform relative to backpack space
+							auto new_local = WorldToLocal(
+								backpack_node->world, droppedRefr->GetCurrent3D()->world);
+
+							// write to extra data
+							ClearTransformData(droppedRefr);
+							WriteTransformData(droppedRefr, new_local);
+							g_backpack_event_queue.push_back(
+								std::make_unique<BackpackIgnoreNextDropEvent>());
+
+							// apply model to backpack
+							if (auto modelstr = GetObjectModelPath(droppedRefr))
+							{
+								backpack->item_view.push_back(BackpackItemView(
+									BackpackItemView::Type::kNatural,
+									droppedRefr->GetObjectReference(),
+									droppedRefr->extraList.GetCount(), &(droppedRefr->extraList),
+									ArtAddon::Make(modelstr, backpack->object, backpack_node,
+										new_local, [](ArtAddon* a) {
+											if (auto model = a->Get3D())
+											{
+												if (model->worldBound.radius >
+													g_maximum_item_radius)
+												{
+													// scale the model
+													model->local.scale = g_maximum_item_radius /
+														model->worldBound.radius;
+												}
+												model->local.scale = 0.5;
+											}
+										})));
+							}
+
+							// add to player inventory
+							AddObjectRefToInventory(
+								droppedRefr, RE::PlayerCharacter::GetSingleton());
+						}
 					}
 				}
 			}
@@ -576,107 +489,88 @@ namespace backpackvr
 
 	BackpackItemView* g_hovered_item = nullptr;
 
+	float GetModelRadius(RE::NiAVObject* a_target) { return 0.f; }
+
 	void BackpackUpdate()
 	{
 		constexpr float reset_distance = 300;
 		constexpr float interaction_distance = 80;
 		auto            pc = PlayerCharacter::GetSingleton();
 
-		if (g_override_rollover_position)
+		for (auto backpack : g_backpacks)
 		{
-			if (auto rollover_node =
-					pc->GetVRNodeData()->RoomNode->GetObjectByName(g_rollover_nodename))
+			if (backpack.object->Is3DLoaded())
 			{
-				auto hand = pc->GetVRNodeData()->LeftWandNode;
-
-				auto desired_world = hand->world.rotate *
-					(hand->world.translate +
-						NiPoint3(
-							0.f, 0.f, 10.f));  //hand->world.rotate * g_rollover_default_hand_pos;
-
-				rollover_node->local.translate = rollover_node->parent->world.rotate.Transpose() *
-					(desired_world - rollover_node->world.translate);
-
-				//rollover_node->local.rotate = rollover_node->parent->world.rotate.Transpose()* hand->world.rotate * g_rollover_default_hand_rot;
-
-				NiUpdateData ctx;
-				rollover_node->Update(ctx);
-			}
-		}
-
-		if (g_backpack_player_objref && g_backpack_player_objref->Is3DLoaded())
-		{
-			auto dist = pc->Get3D(g_use_firstperson)
-							->world.translate.GetDistance(
-								g_backpack_player_objref->GetCurrent3D()->world.translate);
-			// turn off when far away
-			if (dist > reset_distance ||
-				g_backpack_player_objref->GetParentCell() != pc->GetParentCell())
-			{
-				g_backpack_item_visible.clear();
-				g_backpack_player_objref->MoveTo(g_marker_disable_objref);
-				g_override_rollover_position = false;
-				ResetRollover();
-				SetRolloverObject(g_backpack_player_objref, g_backpack_obj);
-			}
-			else if (dist < interaction_distance)
-			{  // TODO: smarter interaction logic, try use Wearables for everything
-				// TODO: on that note, add check to overlap spheres for distance to attached object reference
-
-				auto lhand = pc->GetVRNodeData()->LeftWandNode;
-				auto rhand = pc->GetVRNodeData()->RightWandNode;
-
-				// find overlapping object
-				for (auto& item : g_backpack_item_visible)
+				auto dist = pc->Get3D(g_use_firstperson)
+								->world.translate.GetDistance(
+									backpack.object->GetCurrent3D()->world.translate);
+				// turn off when far away
+				if (dist > reset_distance ||
+					backpack.object->GetParentCell() != pc->GetParentCell())
 				{
-					if (auto node = item.model->Get3D())
-					{
-						if (item.type == BackpackItemView::Type::kNatural)
-						{
-							auto pos = node->worldBound.center;
+					backpack.item_view.clear();
+					backpack.object->MoveTo(g_marker_disable_objref);
+					g_override_rollover_position = false;
+					SetRolloverObject(backpack.object, backpack.base);
+				}
+				else if (dist < interaction_distance)
+				{  // TODO: smarter interaction logic, try use Wearables for everything
+					// TODO: on that note, add check to overlap spheres for distance to attached object reference
 
-							if (bool isLeft = node->worldBound.radius >
-									lhand->world.translate.GetDistance(pos);
-								isLeft ||
-								node->worldBound.radius > rhand->world.translate.GetDistance(pos))
-							{
-								if (g_hovered_item != &item)
-								{
-									g_hovered_item = &item;
-									QueueAnimation();
-									DisableRollover(g_backpack_player_objref, false, true);
-									SetRolloverObject(
-										g_backpack_player_objref, g_hovered_item->base);
-									SetRolloverHand(g_backpack_player_objref, isLeft);
-								}
-							}
-							else if (g_hovered_item == &item)
-							{
-								g_hovered_item = nullptr;
-								ResetRollover();
-								DisableRollover(g_backpack_player_objref, true, true);
-								SetRolloverObject(g_backpack_player_objref, g_backpack_obj);
-								g_override_rollover_position = false;
-							}
-						}
-						else if (item.type == BackpackItemView::Type::kMinified)
+					auto lhand = pc->GetVRNodeData()->LeftWandNode;
+					auto rhand = pc->GetVRNodeData()->RightWandNode;
+
+					// find overlapping object
+					for (auto& item : backpack.item_view)
+					{
+						if (auto node = item.model->Get3D())
 						{
-							if (lhand->world.translate.GetDistance(node->world.translate) ||
-								rhand->world.translate.GetDistance(node->world.translate))
+							if (item.type == BackpackItemView::Type::kNatural)
 							{
-								if (g_hovered_item != &item)
-								{
-									g_hovered_item = &item;
-									QueueAnimation();
-									DisableRollover(g_backpack_player_objref, false, true);
-									SetRolloverObject(
-										g_backpack_player_objref, g_hovered_item->base);
+								auto pos = node->worldBound.center;
+
+								if (bool isLeft = node->worldBound.radius >
+										lhand->world.translate.GetDistance(pos);
+									isLeft ||
+									node->worldBound.radius >
+										rhand->world.translate.GetDistance(pos))
+								{  // overlap enter event
+									if (g_hovered_item != &item)
+									{
+										g_active_backpack[isLeft] = &backpack;
+										g_hovered_item = &item;
+										QueueAnimation();
+										DisableRollover(backpack.object, false, true);
+										SetRolloverObject(backpack.object, g_hovered_item->base);
+										SetRolloverHand(backpack.object, isLeft);
+									}
+								}
+								else if (g_hovered_item == &item)
+								{  // overlap exit event
+									g_hovered_item = nullptr;
+									DisableRollover(backpack.object, true, true);
+									SetRolloverObject(backpack.object, g_backpack_obj);
+									g_override_rollover_position = false;
 								}
 							}
-							else if (g_hovered_item == &item)
+							else if (item.type == BackpackItemView::Type::kMinified)
 							{
-								g_hovered_item = nullptr;
-								DisableRollover(g_backpack_player_objref, true, true);
+								if (lhand->world.translate.GetDistance(node->world.translate) ||
+									rhand->world.translate.GetDistance(node->world.translate))
+								{
+									if (g_hovered_item != &item)
+									{
+										g_hovered_item = &item;
+										QueueAnimation();
+										DisableRollover(backpack.object, false, true);
+										SetRolloverObject(backpack.object, g_hovered_item->base);
+									}
+								}
+								else if (g_hovered_item == &item)
+								{
+									g_hovered_item = nullptr;
+									DisableRollover(backpack.object, true, true);
+								}
 							}
 						}
 					}
@@ -685,55 +579,70 @@ namespace backpackvr
 		}
 	}
 
-	void DebugPrint()
+	void ResetRollover()
 	{
-		auto pcvr = PlayerCharacter::GetSingleton()->GetVRNodeData();
-
-		if (auto hand = pcvr->RightWandNode)
+		if (auto rollover_node =
+				PlayerCharacter::GetSingleton()->GetVRNodeData()->RoomNode->GetObjectByName(
+					g_rollover_nodename))
 		{
-			if (auto rolly = pcvr->RoomNode->GetObjectByName(g_rollover_nodename))
-			{
-				auto hand_to_rollover_vector = rolly->world.translate - hand->world.translate;
-				auto hand_to_rollover_rot = rolly->world.rotate.Transpose() * hand->world.rotate;
+			rollover_node->local.translate = g_rollover_default_hand_pos;
+			rollover_node->local.rotate = g_rollover_default_hand_rot;
 
-				NiPoint3 hand_to_rollover_rot_euler;
-				hand_to_rollover_rot.ToEulerAnglesXYZ(hand_to_rollover_rot_euler);
-
-				helper::PrintVec(hand_to_rollover_vector);
-				helper::PrintVec(hand_to_rollover_rot_euler);
-			}
+			NiUpdateData ctx;
+			rollover_node->Update(ctx);
 		}
 	}
 
-	bool debug_print = false;
+	void OverrideRollover()
+	{
+		auto pcvr = PlayerCharacter::GetSingleton()->GetVRNodeData();
+		if (auto rollover_node = pcvr->RoomNode->GetObjectByName(g_rollover_nodename))
+		{
+			auto hand = pcvr->LeftWandNode;
+
+			auto desired_world =
+				hand->world.translate + hand->world.rotate * g_rollover_default_hand_pos;
+
+			rollover_node->local.translate = rollover_node->parent->world.rotate.Transpose() *
+				(desired_world - rollover_node->parent->world.translate);
+
+			rollover_node->local.rotate = rollover_node->parent->world.rotate.Transpose() *
+				hand->world.rotate * g_rollover_default_hand_rot;
+
+			NiUpdateData ctx;
+			rollover_node->Update(ctx);
+		}
+	}
 
 	void OnUpdate()
 	{
+		static bool last_override = false;
+		if (g_override_rollover_position)
+		{
+			OverrideRollover();
+			last_override = true;
+		}
+		else if (last_override)
+		{
+			ResetRollover();
+			last_override = false;
+		}
+
 		//TODO put backpack update in manager class
 		if (g_movepack) { MoveBackpack(); }
 		NiUpdateData ctx;
 		ProcessBackpackEvents();
 
-		static int frame_count = 0;
-		if (frame_count++ % 180 == 0 && debug_print)
-		{
-			SKSE::log::trace("print hand to rollover:    ");
-			DebugPrint();
-		}
-
 		BackpackUpdate();
-		if (g_backpack_player_objref && g_backpack_player_objref->GetCurrent3D())
-		{
-			g_backpack_player_objref->GetCurrent3D()->Update(ctx);
-		}
 
 		ArtAddonManager::GetSingleton()->Update();
 	}
 
-	bool debug_Button_A(const vrinput::ModInputEvent& e)
+	bool debug_Button_B(const vrinput::ModInputEvent& e)
 	{
-		debug_print ^= 1;
-		return false;
+		g_override_rollover_position ^= 1;
+		if (!g_override_rollover_position) { ResetRollover(); }
+		return true;
 	}
 
 	void Init()
@@ -756,11 +665,8 @@ namespace backpackvr
 		vrinput::AddCallback(debug_grab, vr::EVRButtonId::k_EButton_SteamVR_Trigger,
 			vrinput::Hand::kLeft, vrinput::ActionType::kPress);
 
-		vrinput::AddCallback(debug_Button_A, vr::EVRButtonId::k_EButton_A,
+		vrinput::AddCallback(debug_Button_B, vr::EVRButtonId::k_EButton_Knuckles_B,
 			vrinput::Hand::kRight, vrinput::ActionType::kPress);
-
-		//vrinput::AddCallback(debug_ApplyArt, vr::EVRButtonId::k_EButton_Knuckles_B,
-		//	vrinput::Hand::kRight, vrinput::ActionType::kPress);
 
 		/* HIGGS init */
 		if (g_higgsInterface)
@@ -790,74 +696,46 @@ namespace backpackvr
 			g_higgsInterface->AddDroppedCallback(OnHiggsDrop);
 			g_higgsInterface->AddStashedCallback(OnHiggsStashed);
 		}
+
+		g_backpacks.push_back(Backpack(g_backpack_player_objref_id, g_player));
+		g_backpacks.push_back(Backpack(g_backpack_player_objref_id2, g_player));
+		g_backpacks.push_back(Backpack(g_backpack_NPC_objref_id, g_lydia));
 	}
 
 	void OnGameLoad()
 	{
-		_DEBUGLOG("Load Game: reset state");
-		g_backpack_item_visible.clear();
-
-		// populate references
-		if (auto f = GetForm(g_backpack_player_objref_id, g_mod_name))
+		static bool ignoreonce = true;
+		if (ignoreonce) { ignoreonce = false; }
+		else
 		{
-			_DEBUGLOG("got backpack form");
-			if (auto ref = f->AsReference())
+			_DEBUGLOG("Load Game: reset state");
+
+			for (auto& bp : g_backpacks) { bp.Init(); }
+
+			// populate references
+			if (auto f = GetForm(g_marker_modspace_id, g_mod_name))
 			{
-				_DEBUGLOG("got backpack ref");
-				g_backpack_player_objref = ref;
-				g_backpack_obj = ref->GetObjectReference();
-			}
-		}
-		if (auto f = GetForm(g_marker_modspace_id, g_mod_name))
-		{
-			_DEBUGLOG("got marker form");
-			if (auto ref = f->AsReference())
-			{
-				_DEBUGLOG("got marker ref");
-				g_marker_disable_objref = ref;
-			}
-		}
-
-		if (RE::PlayerCharacter::GetSingleton()->Is3DLoaded())
-		{
-			_DEBUGLOG("loading player 3d defaults");
-			auto pcvr = RE::PlayerCharacter::GetSingleton()->GetVRNodeData();
-			auto hand = pcvr->RightWandNode;
-			auto rollover = pcvr->RoomNode->GetObjectByName(g_rollover_nodename);
-
-			g_rollover_default_hand_pos = rollover->local.translate;
-			g_rollover_default_hand_rot = rollover->local.rotate;
-		}
-	}
-
-	bool CheckBackpackOverlap()
-	{
-		if (g_backpack_player_objref)
-		{
-			if (auto backpacknode = g_backpack_player_objref->GetCurrent3D())
-			{
-				if (auto boxnode = backpacknode->GetObjectByName(g_backpack_container_nodename))
+				_DEBUGLOG("got marker form");
+				if (auto ref = f->AsReference())
 				{
-					if (auto hand = RE::PlayerCharacter::GetSingleton()
-										->GetVRNodeData()
-										->LeftWandNode.get())
-					{
-						if (auto box_size = boxnode->GetExtraData<NiVectorExtraData>(
-								g_backpack_container_extentname))
-						{
-							NiPoint3 temp = { box_size->m_vector[0], box_size->m_vector[1],
-								box_size->m_vector[2] };
-
-							if (TestBoxCollision(boxnode->world, temp, hand->world.translate))
-							{
-								return true;
-							}
-						}
-					}
+					_DEBUGLOG("got marker ref");
+					g_marker_disable_objref = ref;
 				}
 			}
+
+			if (RE::PlayerCharacter::GetSingleton()->Is3DLoaded())
+			{
+				auto pcvr = RE::PlayerCharacter::GetSingleton()->GetVRNodeData();
+				auto hand = pcvr->RightWandNode;
+				auto rollover = pcvr->RoomNode->GetObjectByName(g_rollover_nodename);
+
+				g_rollover_default_hand_pos = rollover->local.translate;
+				g_rollover_default_hand_rot = rollover->local.rotate;
+
+				_DEBUGLOG("default rollover transform:");
+				helper::PrintVec(g_rollover_default_hand_pos);
+			}
 		}
-		return false;
 	}
 
 	void RegisterVRInputCallback()
@@ -914,16 +792,13 @@ namespace backpackvr
 					g_debug_print = helper::ReadIntFromIni(config, "bDebug");
 					g_maximum_item_radius =
 						helper::ReadFloatFromIni(config, "fMaximumDesiredItemSize");
-					mini_items_per_row = helper::ReadIntFromIni(config, "iItemsPerRow");
-					mini_horizontal_spacing =
+					backpack::g_mini_items_per_row = helper::ReadIntFromIni(config, "iItemsPerRow");
+					backpack::g_mini_horizontal_spacing =
 						helper::ReadFloatFromIni(config, "fHorizontalSpacing");
-					mini_width = helper::ReadFloatFromIni(config, "fWidth");
-					mini_height = helper::ReadFloatFromIni(config, "fHeight");
 
 					config.close();
 					last_read = last_write_time(config_path);
 
-					CalculateLayout();
 					return true;
 				}
 				else

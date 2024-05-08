@@ -5,6 +5,7 @@
 #include "VR/PapyrusVRAPI.h"
 #include "VR/VRManagerAPI.h"
 #include "art_addon.h"
+#include "backpack.h"
 #include "higgsinterface001.h"
 #include "hooks.h"
 #include "menu_checker.h"
@@ -36,7 +37,7 @@ namespace backpackvr
 
 	bool debug_grab(const vrinput::ModInputEvent& e);
 
-	bool            CheckBackpackOverlap();
+	void ResetRollover();
 	void            ClearTransformData(RE::TESObjectREFR* a_target);
 	void            WriteTransformData(RE::TESObjectREFR* a_target, RE::NiTransform& a_transform);
 	RE::NiTransform WorldToLocal(RE::NiTransform& a_parent, RE::NiTransform& a_child);
