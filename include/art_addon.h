@@ -36,7 +36,10 @@ namespace art_addon
 
 		~ArtAddon()
 		{
-			if (root3D) { root3D->parent->DetachChild(root3D); }
+			if (root3D && target && target->Is3DLoaded() && root3D->parent)
+			{
+				root3D->parent->DetachChild(root3D);
+			}
 		}
 
 		/** Returns: Pointer to the attached NiAVObject. nullptr if initialization hasn't finished. */

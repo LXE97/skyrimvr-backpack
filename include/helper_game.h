@@ -12,6 +12,8 @@ namespace helper
 	RE::TESForm* LookupByName(RE::FormType a_typeEnum, const char* a_name);
 	RE::FormID   GetFullFormID(uint8_t a_modindex, RE::FormID a_localID);
 
+	void HideActivationText(TESObjectREFR *a_target, bool a_hidden);
+
 	void CastSpellInstant(RE::Actor* a_src, RE::Actor* a_target, RE::SpellItem* sa_pell);
 	void Dispel(RE::Actor* a_src, RE::Actor* a_target, RE::SpellItem* a_spell);
 
@@ -54,7 +56,19 @@ namespace helper
 		return nullptr;
 	}
 
-	void        PrintPlayerModelEffects();
+	inline void SetWorldPosition(
+		RE::NiAVObject* a_target, RE::NiAVObject* a_parent, RE::NiPoint3& a_position)
+	{
+		if (a_target && a_parent)
+		{
+			NiUpdateData ctx;
+			a_target->local.translate =
+				a_parent->world.rotate.Transpose() * (a_position - a_parent->world.translate);
+			a_target->Update(ctx);
+		}
+	}
+
+	void        PrintActorModelEffects(RE::TESObjectREFR* a_actor);
 	void        PrintPlayerShaderEffects();
 	inline void PrintVec(RE::NiPoint3& v) { SKSE::log::trace("{} {} {}", v.x, v.y, v.z); }
 #define VECTOR(X) X.x, X.y, X.z
@@ -70,4 +84,8 @@ namespace helper
 	bool                  ReadConfig(const char* a_ini_path);
 
 	RE::TESForm* GetForm(const RE::FormID a_lower_id, std::string a_mod_name);
+
+	const char* GetObjectModelPath(const RE::TESBoundObject& a_obj);
+	const char* GetObjectModelPath(const RE::TESObjectREFR* a_obj);
+
 }

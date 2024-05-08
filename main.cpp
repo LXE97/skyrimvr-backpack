@@ -55,6 +55,7 @@ void MessageListener(SKSE::MessagingInterface::Message* message)
 		break;
 
 	case SKSE::MessagingInterface::kDataLoaded:
+		InitializeHooking();
 		backpackvr::Init();
 
 	case SKSE::MessagingInterface::kPostLoadGame:

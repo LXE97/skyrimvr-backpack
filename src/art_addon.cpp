@@ -87,6 +87,9 @@ namespace art_addon
 									RemoveCollisionNodes(addon->root3D);
 
 									if (addon->callback) { addon->callback(addon.get()); }
+
+									NiUpdateData ctx;
+									a_modelEffect.target.get()->GetCurrent3D()->Update(ctx);
 								}
 							}
 							else
@@ -137,6 +140,7 @@ namespace art_addon
 
 	ArtAddonManager::ArtAddonManager()
 	{
+		// arbitrary, this is a form from the skyrim trailer that's unlikely to be used by anything else
 		constexpr FormID kBaseArtobjectId = 0x9405f;
 
 		base_artobject = TESForm::LookupByID(kBaseArtobjectId)->As<BGSArtObject>();
@@ -257,13 +261,8 @@ namespace art_addon
 		if (auto pc = PlayerCharacter::GetSingleton()->GetVRNodeData())
 		{
 #define vr(X) out->push_back(pc->X);
-
-			
-
-				vr(RightWandNode)                 /* 4F8 */
-
-				vr(ArrowSnapNode)                 /* 5D8 */
-
+			vr(RightWandNode)     /* 4F8 */
+				vr(ArrowSnapNode) /* 5D8 */
 		}
 	}
 
@@ -382,7 +381,7 @@ namespace art_addon
 							NiTransform t = nodes[i]->world;
 							text[names[i]] = std::make_unique<AddonTextBox>(names[i].c_str(), 0.f,
 								RE::PlayerCharacter::GetSingleton()->Get3D(false), t);
-								SKSE::log::trace("create text box!");
+							SKSE::log::trace("create text box!");
 						}
 						else
 						{

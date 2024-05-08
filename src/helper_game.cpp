@@ -22,6 +22,11 @@ namespace helper
 		return (a_modindex << 24) | a_localID;
 	}
 
+	void HideActivationText(TESObjectREFR* a_target, bool a_hidden)
+	{
+		a_target->extraList.SetExtraFlags(ExtraFlags::Flag::kBlockActivateText, a_hidden);
+	}
+
 	float GetAVPercent(Actor* a_a, ActorValue a_v)
 	{
 		float current = a_a->AsActorValueOwner()->GetActorValue(a_v);
@@ -151,15 +156,14 @@ namespace helper
 		}
 	}
 
-	void PrintPlayerModelEffects()
+	void PrintActorModelEffects(RE::TESObjectREFR* a_actor)
 	{
 		if (const auto processLists = RE::ProcessLists::GetSingleton())
 		{
 			int player = 0;
 			int dangling = 0;
 			processLists->ForEachModelEffect([&](RE::ModelReferenceEffect& a_modelEffect) {
-				if (a_modelEffect.target.get()->AsReference() ==
-					RE::PlayerCharacter::GetSingleton()->AsReference())
+				if (a_actor == nullptr || a_modelEffect.target.get()->AsReference() == a_actor)
 				{
 					if (a_modelEffect.artObject)
 					{
@@ -171,7 +175,7 @@ namespace helper
 				}
 				return RE::BSContainer::ForEachResult::kContinue;
 			});
-			SKSE::log::debug("{} player effects and {} dangling MRE", player, dangling);
+			SKSE::log::debug("{} effects and {} dangling MRE", player, dangling);
 		}
 	}
 
@@ -318,6 +322,35 @@ namespace helper
 		{
 			return RE::TESForm::LookupByID(
 				file->GetPartialIndex() << (file->IsLight() ? 12 : 24) | a_lower_id);
+		}
+		return nullptr;
+	}
+
+	const char* GetObjectModelPath(const RE::TESBoundObject* a_obj)
+	{
+		if (auto model = a_obj->As<TESModelTextureSwap>()) { return model->GetModel(); }
+		else if (a_obj->GetFormType() == FormType::Armor)
+		{
+			if (auto bipedmodel = a_obj->As<TESBipedModelForm>())
+			{
+				return bipedmodel->worldModels[0].GetModel();
+			}
+		}
+		return nullptr;
+	}
+
+	const char* GetObjectModelPath(const RE::TESObjectREFR* a_obj)
+	{
+		if (auto boundobj = a_obj->GetBaseObject())
+		{
+			if (auto model = boundobj->As<TESModelTextureSwap>()) { return model->GetModel(); }
+			else if (boundobj->GetFormType() == FormType::Armor)
+			{
+				if (auto bipedmodel = boundobj->As<TESBipedModelForm>())
+				{
+					return bipedmodel->worldModels[0].GetModel();
+				}
+			}
 		}
 		return nullptr;
 	}
