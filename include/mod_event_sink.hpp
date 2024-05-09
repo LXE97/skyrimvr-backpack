@@ -1,4 +1,3 @@
-// lets you add/remove callbacks to event sources at runtime... not sure why I thought I needed this
 #pragma once
 
 template <typename T>
