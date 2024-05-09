@@ -27,24 +27,13 @@ namespace backpackvr
 
 	void OnGameLoad();
 
-	bool OnGrabButton(const vrinput::ModInputEvent& e);
-
 	void OnUpdate();
+	
+		void OnContainerChanged(const RE::TESContainerChangedEvent* event);
+
+	void OnHiggsStashed(bool isLeft, RE::TESForm *stashedForm);
 
 	void OnHiggsDrop(bool isLeft, RE::TESObjectREFR* droppedRefr);
-
-	void OnHiggsGrab(bool isLeft, RE::TESObjectREFR* grabbedRefr);
-
-	bool debug_grab(const vrinput::ModInputEvent& e);
-
-	void ResetRollover();
-	void            ClearTransformData(RE::TESObjectREFR* a_target);
-	void            WriteTransformData(RE::TESObjectREFR* a_target, RE::NiTransform& a_transform);
-	RE::NiTransform WorldToLocal(RE::NiTransform& a_parent, RE::NiTransform& a_child);
-	void            MoveBackpack();
-	void            DisableRollover(RE::TESObjectREFR* a_target, bool a_disabled);
-	void            DisableRollover(RE::TESObjectREFR* a_target, bool a_disabled, bool fake);
-	void SetRolloverObject(RE::TESObjectREFR* a_target, RE::TESBoundObject* a_new_base_object);
 
 	void UnregisterButtons(bool isLeft);
 	void RegisterButtons(bool isLeft);

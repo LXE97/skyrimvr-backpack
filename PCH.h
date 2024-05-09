@@ -41,3 +41,6 @@ namespace stl
 		T::func = vtbl.write_vfunc(idx, T::thunk);
 	}
 }
+
+#define _DEBUGLOG(...) \
+	if (backpackvr::g_debug_print) { SKSE::log::trace(__VA_ARGS__); }

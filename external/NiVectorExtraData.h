@@ -14,4 +14,5 @@ namespace RE
 
 		float m_vector[4];  // 18
 	};
+	
 }

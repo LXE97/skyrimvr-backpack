@@ -8,8 +8,8 @@ namespace helper
 {
 	using namespace RE;
 
-	const bool TestBoxCollision(NiTransform &a_origin, NiPoint3 &a_extent, NiPoint3 &a_collider);
-	
+	const bool TestBoxCollision(NiTransform& a_origin, NiPoint3& a_extent, NiPoint3& a_collider);
+
 	RE::NiColor HSV_to_RGB(float h, float s, float v);
 
 	RE::NiPoint3 RGBtoHSV(NiColor rgb);
@@ -19,6 +19,8 @@ namespace helper
 	float deg2rad(const float d);
 
 	float GetAzimuth(NiMatrix3& rot);
+
+	RE::NiTransform WorldToLocal(RE::NiTransform& a_parent, RE::NiTransform& a_child);
 
 	float GetElevation(NiMatrix3& rot);
 

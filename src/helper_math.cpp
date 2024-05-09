@@ -9,7 +9,7 @@ namespace helper
 		// get vector to test point and transform to box space
 		auto diff = a_collider - a_origin.translate;
 		diff = a_origin.rotate * diff;
-		helper::PrintVec(diff);
+
 		// test components
 		return diff.x > 0 && diff.y > 0 && diff.z > 0 && diff.x < a_extent.x &&
 			diff.y < a_extent.y && diff.z < a_extent.z;
@@ -22,6 +22,14 @@ namespace helper
 		float sinz = sin(zangle);
 		target = { cosz * target[0] + sinz * target[1], cosz * target[1] - sinz * target[0],
 			target[2] };
+	}
+
+	RE::NiTransform WorldToLocal(RE::NiTransform& a_parent, RE::NiTransform& a_child)
+	{
+		NiTransform result;
+		result.translate = a_parent.rotate * (a_child.translate - a_parent.translate);
+		result.rotate = a_parent.rotate.Transpose() * a_child.rotate;
+		return result;
 	}
 
 	RE::NiPoint3 LinearInterp(const RE::NiPoint3& v1, const RE::NiPoint3& v2, float interp)
