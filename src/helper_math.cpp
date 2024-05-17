@@ -32,6 +32,10 @@ namespace helper
 		return result;
 	}
 
+	RE::NiPoint3 WorldToLocalPos(RE::NiTransform& a_parent, RE::NiPoint3 const& a_child){
+		return a_parent.rotate * (a_child - a_parent.translate);
+	}
+
 	RE::NiPoint3 LinearInterp(const RE::NiPoint3& v1, const RE::NiPoint3& v2, float interp)
 	{
 		RE::NiPoint3 result;

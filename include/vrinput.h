@@ -9,6 +9,8 @@ namespace vrinput
 	constexpr const char* kRightHandNodeName = "NPC R Hand [RHnd]";
 	constexpr const char* kControllerNodeName[2] = { kRightHandNodeName, kLeftHandNodeName };
 
+	extern RE::NiPoint3 g_palm_offset;
+
 	constexpr std::array all_buttons{
 		vr::k_EButton_System,
 		vr::k_EButton_Knuckles_B,
@@ -94,6 +96,23 @@ namespace vrinput
 		return nullptr;
 	}
 
+	inline RE::NiAVObject* GetHandNode(bool isLeft, bool a_first_person)
+	{
+		if (auto pc3d = RE::PlayerCharacter::GetSingleton()->Get3D(a_first_person))
+		{
+			return pc3d->GetObjectByName(isLeft ? kLeftHandNodeName : kRightHandNodeName);
+		}
+		return nullptr;
+	}
+
+	inline const RE::NiPoint3 GetHandPosition(bool isLeft, bool a_first_person)
+	{
+		if (auto node = GetHandNode(isLeft, a_first_person)) {
+			return node->world.translate + (node->world.rotate * g_palm_offset);
+		}
+		return RE::NiPoint3::Zero();
+	}
+
 	/* Adds a function to the list of callbacks for a specific button. The callback will be triggered
 	* on press and release.
 	*/
@@ -131,7 +150,7 @@ namespace vrinput
 
 	void InitControllerHooks();
 
-	void Vibrate(bool isLeft, std::vector<uint16_t>* keyframes, float a_power = 1.f);
+	void Vibrate(bool isLeft, const std::vector<uint16_t>* keyframes = nullptr, float a_power = 1.f, bool loop = false);
 
 	/* This needs to be fed to OVRHookManager::RegisterControllerStateCB() */
 	bool ControllerInputCallback(vr::TrackedDeviceIndex_t unControllerDeviceIndex,

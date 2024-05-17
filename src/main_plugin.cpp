@@ -1,6 +1,7 @@
 #include "main_plugin.h"
 
 #include "NiVectorExtraData.h"
+#include "RE/E/ExtraDataList.h"
 
 #include <chrono>
 
@@ -20,9 +21,6 @@ namespace backpackvr
 	bool g_use_firstperson = false;
 
 	// state
-	RE::TESObjectREFR* g_marker_disable_objref = nullptr;
-	RE::NiPoint3       g_rollover_default_hand_pos;
-	RE::NiMatrix3      g_rollover_default_hand_rot;
 
 	// resources
 	const RE::FormID g_backpack_player_objref_id = 0xD96;
@@ -37,7 +35,14 @@ namespace backpackvr
 	PapyrusVRAPI*       g_papyrusvr;
 
 	bool debug_PrintInventoryExtraData(const vrinput::ModInputEvent& e);
-	bool debug_grab(const vrinput::ModInputEvent& e);
+
+	void OnMenuOpenClose(RE::MenuOpenCloseEvent const* evn)
+	{
+		if (!evn->opening && std::strcmp(evn->menuName.data(), "Journal Menu") == 0)
+		{
+			ReadConfig(g_ini_path);
+		}
+	}
 
 	void OnContainerChanged(const RE::TESContainerChangedEvent* event)
 	{
@@ -52,6 +57,25 @@ namespace backpackvr
 	void OnHiggsDrop(bool isLeft, RE::TESObjectREFR* droppedRefr)
 	{
 		backpack::Controller::GetSingleton()->OnHiggsDrop(isLeft, droppedRefr);
+	}
+
+	bool OnGrabButton(const vrinput::ModInputEvent& e)
+	{
+		if (e.button_state == vrinput::ButtonState::kButtonDown)
+		{
+			backpack::Controller::GetSingleton()->OnGrabAction((bool)e.device, true);
+		}
+		else { backpack::Controller::GetSingleton()->OnGrabAction((bool)e.device, false); }
+		return false;
+	}
+
+	bool OnDebugSummonButton(const vrinput::ModInputEvent& e)
+	{
+		if (e.button_state == vrinput::ButtonState::kButtonDown)
+		{
+			backpack::Controller::GetSingleton()->DebugSummonPlayerPack();
+		}
+		return true;
 	}
 
 	void OnUpdate()
@@ -70,16 +94,26 @@ namespace backpackvr
 		menuchecker::begin();
 		RegisterVRInputCallback();
 
+		RegisterButtons();
+
 		hooks::Install();
 
 		auto containerSink = EventSink<TESContainerChangedEvent>::GetSingleton();
 		ScriptEventSourceHolder::GetSingleton()->AddEventSink(containerSink);
 		containerSink->AddCallback(OnContainerChanged);
 
+		auto menu_sink = EventSink<RE::MenuOpenCloseEvent>::GetSingleton();
+		menu_sink->AddCallback(OnMenuOpenClose);
+		RE::UI::GetSingleton()->AddEventSink(menu_sink);
+
 		/* input callbacks */
+
 		vrinput::AddCallback(debug_PrintInventoryExtraData,
-			vr::EVRButtonId::k_EButton_SteamVR_Trigger, vrinput::Hand::kLeft,
+			vr::EVRButtonId::k_EButton_A, vrinput::Hand::kRight,
 			vrinput::ActionType::kPress);
+
+		vrinput::AddCallback(OnDebugSummonButton, vr::EVRButtonId::k_EButton_Knuckles_B,
+			vrinput::Hand::kRight, vrinput::ActionType::kPress);
 
 		/* HIGGS init */
 		if (g_higgsInterface)
@@ -87,23 +121,15 @@ namespace backpackvr
 			auto higgs_config_path = GetGamePath() / "SKSE/Plugins/higgs_vr.ini";
 
 			std::ifstream higgs_config(higgs_config_path);
-			float         palm_x = 0.f;
-			float         palm_y = 0.f;
-			float         palm_z = 0.f;
 
 			if (higgs_config.is_open())
 			{
-				palm_x = ReadFloatFromIni(higgs_config, "PalmPositionX");
-				palm_y = ReadFloatFromIni(higgs_config, "PalmPositionY");
-				palm_z = ReadFloatFromIni(higgs_config, "PalmPositionZ");
+				float palm_x = ReadFloatFromIni(higgs_config, "PalmPositionX");
+				float palm_y = ReadFloatFromIni(higgs_config, "PalmPositionY");
+				float palm_z = ReadFloatFromIni(higgs_config, "PalmPositionZ");
+				vrinput::g_palm_offset = { palm_x, palm_y, palm_z };
 				higgs_config.close();
 			}
-
-			/*
-			vrinput::OverlapSphereManager::GetSingleton()->SetPalmOffset(
-				{ palm_x, palm_y, palm_z });
-			SKSE::log::trace("Palm position set to {} {} {} ", palm_x, palm_y, palm_z);
-			*/
 
 			//g_higgsInterface->AddPostVrikPostHiggsCallback(OnUpdate);
 			g_higgsInterface->AddDroppedCallback(OnHiggsDrop);
@@ -120,7 +146,7 @@ namespace backpackvr
 			if (auto ref = f->AsReference())
 			{
 				_DEBUGLOG("got marker ref");
-				g_marker_disable_objref = ref;
+				backpack::g_marker_disable_objref = ref;
 			}
 		}
 
@@ -130,12 +156,23 @@ namespace backpackvr
 			auto hand = pcvr->RightWandNode;
 			auto rollover = pcvr->RoomNode->GetObjectByName(g_rollover_nodename);
 
-			g_rollover_default_hand_pos = rollover->local.translate;
-			g_rollover_default_hand_rot = rollover->local.rotate;
+			backpack::g_rollover_default_hand_pos = rollover->local.translate;
+			backpack::g_rollover_default_hand_rot = rollover->local.rotate;
 
 			_DEBUGLOG("default rollover transform:");
 			helper::PrintVec(g_rollover_default_hand_pos);
 		}
+
+		backpack::Controller::GetSingleton()->Init();
+		backpack::Controller::GetSingleton()->Add(Backpack(g_backpack_player_objref_id, g_player));
+	}
+
+	void RegisterButtons()
+	{
+		vrinput::AddCallback(OnGrabButton, vr::EVRButtonId::k_EButton_SteamVR_Trigger,
+			vrinput::Hand::kLeft, vrinput::ActionType::kPress);
+		vrinput::AddCallback(OnGrabButton, vr::EVRButtonId::k_EButton_SteamVR_Trigger,
+			vrinput::Hand::kRight, vrinput::ActionType::kPress);
 	}
 
 	void RegisterVRInputCallback()
@@ -178,6 +215,12 @@ namespace backpackvr
 			g_left_hand_mode = setting->GetBool();
 		}
 
+		if (auto setting = RE::GetINISetting("fActivatePickLength:Interface"))
+		{
+			backpack::g_default_factivatepicklength = setting->GetFloat();
+		}
+
+		SKSE::log::info("fActivatePickLength: {}\n ", backpack::g_default_factivatepicklength);
 		SKSE::log::info("bLeftHandedMode: {}\n ", g_left_hand_mode);
 
 		try
@@ -193,9 +236,25 @@ namespace backpackvr
 					g_maximum_item_radius =
 						helper::ReadFloatFromIni(config, "fMaximumDesiredItemSize");
 
-					//backpack::g_mini_items_per_row = helper::ReadIntFromIni(config, "iItemsPerRow");
-					//backpack::g_mini_horizontal_spacing =
-					//	helper::ReadFloatFromIni(config, "fHorizontalSpacing");
+					auto& settings = backpack::Controller::GetSingleton()->SetSettings();
+					settings.allow_equip_swapping =
+						helper::ReadIntFromIni(config, "bAllowEquipSwapping");
+					settings.disable_grid = helper::ReadIntFromIni(config, "bDisableGrid");
+					settings.mini_horizontal_spacing =
+						helper::ReadFloatFromIni(config, "fHorizontalSpacing");
+					settings.mini_items_per_row = helper::ReadIntFromIni(config, "iItemsPerRow");
+					settings.newitems_drop_on_loot = helper::ReadIntFromIni(config, "bDropOnLoot");
+
+					settings.newitems_drop_on_pickup =
+						helper::ReadIntFromIni(config, "bDropOnPickup");
+					settings.newitems_drop_paused =
+						helper::ReadIntFromIni(config, "bDropWhilePaused");
+					settings.newitems_drop_to_ground =
+						helper::ReadIntFromIni(config, "bDropOnGround");
+					settings.shutoff_distance_npc =
+						helper::ReadFloatFromIni(config, "fPlayerShutoffDistance");
+					settings.shutoff_distance_player =
+						helper::ReadFloatFromIni(config, "fNPCShutoffDistance");
 
 					config.close();
 					last_read = last_write_time(config_path);
@@ -234,87 +293,26 @@ namespace backpackvr
 					auto data = value.second.get();
 
 					auto name = key->GetName();
+					SKSE::log::trace("InventoryEntry {} , count: {}", name, count);
 
 					if (auto extra = data->extraLists)
 					{
 						for (auto edata : *extra)
 						{
-							SKSE::log::trace("EXTRA NAME: {} ", edata->GetDisplayName(key));
+							SKSE::log::trace("  extra name: {} count: {}",
+								edata->GetDisplayName(key), edata->GetCount());
 
 							for (auto& extraentry : *edata)
 							{
 								SKSE::log::trace(
-									"extra data type: {:x}", (int)extraentry.GetType());
+									"    extra data type: {:x}", (int)extraentry.GetType());
 							}
 						}
 					}
-
-					if (auto model = key->As<TESModelTextureSwap>())
-					{
-						SKSE::log::trace("{} ({}) {}: type: {}  model: {}", name, count,
-							data->GetDisplayName(), FormTypeToString(key->GetFormType()),
-							model->GetModel());
-					}
-					else if (key->GetFormType() == FormType::Armor)
-					{
-						if (auto model2 = key->As<TESBipedModelForm>())
-						{
-							SKSE::log::trace("{} ({}) : type: {}  model: {}", name, count,
-								FormTypeToString(key->GetFormType()),
-								model2->worldModels[0].GetModel());
-						}
-					}
-					else
-					{
-						SKSE::log::trace("{} ({}) : type: {}  model: {}", name, count,
-							FormTypeToString(key->GetFormType()), "none");
-					}
+					else { SKSE::log::trace("  no extralist for {}", name); }
 				}
 			}
 		}
 		return false;
 	}
-
-	bool debug_grab(const vrinput::ModInputEvent& e)
-	{
-		/*
-		if (e.button_state == vrinput::ButtonState::kButtonDown)
-		{
-			if (!g_backpacks.empty())
-			{
-				if (!g_backpacks.front().object->Is3DLoaded())
-				{
-					
-					//g_backpacks.front().object->SetActivationBlocked(true);
-					g_backpacks.front().object->MoveTo(RE::PlayerCharacter::GetSingleton());
-					SetRolloverObject(g_backpacks.front().object, g_backpack_obj);
-					ResetRollover();
-					DisableRollover(g_backpacks.front().object, true, true);
-					g_movepack = true;
-				}
-				else
-				{
-					MoveBackpack();
-					g_backpacks.front().object->data.angle = RE::NiPoint3();
-					g_movepack = true;
-				}
-			}
-		}
-		else { g_movepack = false; }
-*/
-		return false;
-	}
-}
-
-namespace RE
-{
-	ExtraEditorRefMoveData::~ExtraEditorRefMoveData() = default;
-	ExtraDataType ExtraEditorRefMoveData::GetType() const
-	{
-		return ExtraDataType::kEditorRefMoveData;
-	}
-
-	ExtraCachedScale::~ExtraCachedScale() = default;
-	ExtraDataType ExtraCachedScale::GetType() const { return ExtraDataType::kCachedScale; }
-
 }

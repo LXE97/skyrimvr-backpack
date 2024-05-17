@@ -21,6 +21,7 @@ namespace helper
 	float GetAzimuth(NiMatrix3& rot);
 
 	RE::NiTransform WorldToLocal(RE::NiTransform& a_parent, RE::NiTransform& a_child);
+	RE::NiPoint3    WorldToLocalPos(RE::NiTransform& a_parent, RE::NiPoint3 const& a_child);
 
 	float GetElevation(NiMatrix3& rot);
 

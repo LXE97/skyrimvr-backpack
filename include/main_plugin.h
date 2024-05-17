@@ -21,6 +21,7 @@ namespace backpackvr
 
 	extern PapyrusVRAPI* g_papyrusvr;
 	extern bool          g_left_hand_mode;
+	extern bool          g_use_firstperson;
 	extern bool          g_debug_print;
 
 	void Init();
@@ -28,15 +29,17 @@ namespace backpackvr
 	void OnGameLoad();
 
 	void OnUpdate();
-	
-		void OnContainerChanged(const RE::TESContainerChangedEvent* event);
 
-	void OnHiggsStashed(bool isLeft, RE::TESForm *stashedForm);
+	void OnContainerChanged(const RE::TESContainerChangedEvent* event);
+
+	void OnHiggsStashed(bool isLeft, RE::TESForm* stashedForm);
 
 	void OnHiggsDrop(bool isLeft, RE::TESObjectREFR* droppedRefr);
 
-	void UnregisterButtons(bool isLeft);
-	void RegisterButtons(bool isLeft);
+	void OnMenuOpenClose(RE::MenuOpenCloseEvent const* evn);
+
+	void UnregisterButtons();
+	void RegisterButtons();
 
 	void RegisterVRInputCallback();
 
