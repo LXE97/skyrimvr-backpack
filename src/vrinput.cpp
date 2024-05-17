@@ -25,6 +25,8 @@ namespace vrinput
 	float joystick_dpad_threshold_negative = -0.7f;
 	float adjustable = 0.02f;
 
+	RE::NiPoint3 g_palm_offset = { 0, 0, 0 };
+
 	std::mutex               callback_lock;
 	vr::TrackedDeviceIndex_t g_leftcontroller;
 	vr::TrackedDeviceIndex_t g_rightcontroller;
@@ -43,9 +45,6 @@ namespace vrinput
 	std::array<std::array<uint64_t, 2>, 2> button_states = { { { 0ull, 0ull }, { 0ull, 0ull } } };
 
 	std::vector<ModInputEvent> fake_button_states;
-
-	std::vector<uint16_t>* g_haptic_keyframes_left = nullptr;
-	std::vector<uint16_t>* g_haptic_keyframes_right = nullptr;
 
 	void StartBlockingAll() { block_all_inputs = true; }
 	void StopBlockingAll() { block_all_inputs = false; }
@@ -256,11 +255,6 @@ namespace vrinput
 		code_set_buttons.ready();
 	}
 
-	int   haptic_frame_pos_left = 0;
-	int   haptic_frame_pos_right = 0;
-	float g_haptic_power_left = 1.f;
-	float g_haptic_power_right = 1.f;
-
 	// handles low level button/trigger events
 	bool ControllerInputCallback(vr::TrackedDeviceIndex_t unControllerDeviceIndex,
 		const vr::VRControllerState_t* pControllerState, uint32_t unControllerStateSize,
@@ -398,9 +392,11 @@ namespace vrinput
 		return true;
 	}
 
-	bool                         overlapping = false;
-	PapyrusVR::TrackedDevicePose bow;
-	PapyrusVR::TrackedDevicePose arrow;
+	bool                   g_haptic_loop[] = { false, false };
+	const std::vector<uint16_t>* g_haptic_keyframes[] = { nullptr, nullptr };
+	int                    haptic_frame_pos[] = { 0, 0 };
+	float                  g_haptic_power[] = { 1.f, 1.f };
+	std::mutex             vibrate;
 
 	// handles device poses and generates haptic events (For now)
 	vr::EVRCompositorError ControllerPoseCallback(VR_ARRAY_COUNT(unRenderPoseArrayCount)
@@ -411,44 +407,36 @@ namespace vrinput
 	{
 		using namespace PapyrusVR;
 
-		if (g_haptic_keyframes_left)
+		std::scoped_lock lock(vibrate);
+		for (auto isLeft : { true, false })
 		{
-			if (haptic_frame_pos_left < g_haptic_keyframes_left->size())
+			if (g_haptic_keyframes[isLeft])
 			{
-				g_IVRSystem->TriggerHapticPulse(g_leftcontroller, 0,
-					g_haptic_keyframes_left->at(haptic_frame_pos_left) * g_haptic_power_left);
-				haptic_frame_pos_left++;
+				if (haptic_frame_pos[isLeft] < g_haptic_keyframes[isLeft]->size() ||
+					g_haptic_loop[isLeft])
+				{
+					g_IVRSystem->TriggerHapticPulse(isLeft ? g_leftcontroller : g_rightcontroller,
+						0,
+						g_haptic_keyframes[isLeft]->at(
+							haptic_frame_pos[isLeft] % g_haptic_keyframes[isLeft]->size()) *
+							g_haptic_power[isLeft]);
+					haptic_frame_pos[isLeft]++;
+				}
+				else { g_haptic_keyframes[isLeft] = nullptr; }
 			}
-			else { g_haptic_keyframes_left = nullptr; }
-		}
-		if (g_haptic_keyframes_right)
-		{
-			if (haptic_frame_pos_right < g_haptic_keyframes_right->size())
-			{
-				g_IVRSystem->TriggerHapticPulse(g_rightcontroller, 0,
-					g_haptic_keyframes_right->at(haptic_frame_pos_right) * g_haptic_power_right);
-				haptic_frame_pos_right++;
-			}
-			else { g_haptic_keyframes_right = nullptr; }
 		}
 
 		return vr::EVRCompositorError::VRCompositorError_None;
 	}
 
-	void Vibrate(bool isLeft, std::vector<uint16_t>* keyframes, float a_power)
+	void Vibrate(bool isLeft, const std::vector<uint16_t>* keyframes, float a_power, bool loop)
 	{
-		if (isLeft)
-		{
-			g_haptic_keyframes_left = keyframes;
-			haptic_frame_pos_left = 0;
-			g_haptic_power_left = std::clamp(a_power, 0.1f, 1.0f);
-		}
-		else
-		{
-			g_haptic_keyframes_right = keyframes;
-			haptic_frame_pos_right = 0;
-			g_haptic_power_right = std::clamp(a_power, 0.1f, 1.0f);
-		}
+		std::scoped_lock lock(vibrate);
+
+		g_haptic_keyframes[isLeft] = keyframes;
+		haptic_frame_pos[isLeft] = 0;
+		g_haptic_power[isLeft] = std::clamp(a_power, 0.1f, 1.0f);
+		g_haptic_loop[isLeft] = loop;
 	}
 
 	RE::NiTransform HmdMatrixToNiTransform(const HmdMatrix34_t& hmdMatrix)

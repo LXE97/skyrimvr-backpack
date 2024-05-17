@@ -42,8 +42,8 @@ namespace helper
 		{
 			if (equipped->IsWeapon())
 			{
-				float current =
-					a_a->AsActorValueOwner()->GetActorValue(ActorValue::kRightItemCharge);
+				float current = a_a->AsActorValueOwner()->GetActorValue(
+					isLeft ? ActorValue::kLeftItemCharge : ActorValue::kRightItemCharge);
 
 				// player made items
 				if (auto entryData = a_a->GetEquippedEntryData(isLeft))
@@ -326,7 +326,7 @@ namespace helper
 		return nullptr;
 	}
 
-	const char* GetObjectModelPath(const RE::TESBoundObject* a_obj)
+	const char* GetObjectModelPath(RE::TESBoundObject* a_obj)
 	{
 		if (auto model = a_obj->As<TESModelTextureSwap>()) { return model->GetModel(); }
 		else if (a_obj->GetFormType() == FormType::Armor)
@@ -339,7 +339,7 @@ namespace helper
 		return nullptr;
 	}
 
-	const char* GetObjectModelPath(const RE::TESObjectREFR* a_obj)
+	const char* GetObjectModelPath(RE::TESObjectREFR* a_obj)
 	{
 		if (auto boundobj = a_obj->GetBaseObject())
 		{

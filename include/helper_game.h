@@ -85,7 +85,7 @@ namespace helper
 
 	RE::TESForm* GetForm(const RE::FormID a_lower_id, std::string a_mod_name);
 
-	const char* GetObjectModelPath(const RE::TESBoundObject& a_obj);
-	const char* GetObjectModelPath(const RE::TESObjectREFR* a_obj);
+	const char* GetObjectModelPath(RE::TESBoundObject* a_obj);
+	const char* GetObjectModelPath(RE::TESObjectREFR* a_obj);
 
 }
