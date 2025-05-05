@@ -12,12 +12,14 @@
 
 #include <REL/Relocation.h>
 
+#pragma warning(disable : 4996)
+
+#define _SILENCE_ALL_MS_EXT_DEPRECATION_WARNINGS
+
 using namespace std::literals;
 
 namespace stl
 {
-	using namespace SKSE::stl;
-
 	template <class T>
 	void write_thunk_call(std::uintptr_t a_src)
 	{

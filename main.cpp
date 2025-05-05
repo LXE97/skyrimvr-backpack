@@ -9,6 +9,7 @@ void SetupLog();
 // Interfaces for communicating with other SKSE plugins.
 static SKSE::detail::SKSEMessagingInterface* g_messaging;
 static SKSE::PluginHandle                    g_pluginHandle = 0xffff;
+bool                                         g_plugin_error = false;
 
 void InitializeHooking()
 {
@@ -50,16 +51,29 @@ void MessageListener(SKSE::MessagingInterface::Message* message)
 		else
 		{
 			critical("Plugin disabled: HIGGS interface not found");
-			//g_pluginError = true;
+			g_plugin_error = true;
 		}
 		break;
 
-	case SKSE::MessagingInterface::kDataLoaded:
-		InitializeHooking();
-		backpackvr::Init();
+	case SKSE::MessagingInterface::kDataLoaded:{
+		if (auto file = RE::TESDataHandler::GetSingleton()->LookupModByName(backpack::g_mod_name))
+        {
+            backpackvr::g_esp_index = file->GetPartialIndex();
+			info("kDataLoaded: esp ID = {}", backpackvr::g_esp_index);
+			if (!backpackvr::g_esp_index){
+				g_plugin_error = true;
+				critical("Plugin disabled, no esp");
+			}
+        }
+
+		if (!g_plugin_error)
+		{
+			InitializeHooking();
+			backpackvr::Init();
+		}}
 
 	case SKSE::MessagingInterface::kPostLoadGame:
-		backpackvr::OnGameLoad();
+		if (!g_plugin_error) { backpackvr::OnGameLoad(); }
 	default:
 		break;
 	}

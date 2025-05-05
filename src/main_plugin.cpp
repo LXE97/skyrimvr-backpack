@@ -13,7 +13,7 @@ namespace backpackvr
 
 	// user settings, documented in .ini
 	bool  g_debug_print = true;
-	bool  g_hardcore_mode = true;
+	bool  g_hardcore_mode = false;
 	float g_maximum_item_radius = 25.f;
 
 	// settings
@@ -23,13 +23,14 @@ namespace backpackvr
 	// state
 
 	// resources
-	const RE::FormID g_backpack_player_objref_id = 0xD96;
+	const RE::FormID g_backpack_player_objref_id = 0xD97;
 	const RE::FormID g_backpack_player_objref_id2 = 0x804;
 	const RE::FormID g_backpack_NPC_objref_id = 0x803;
-	const RE::FormID g_marker_modspace_id = 0x801;
+	const RE::FormID g_marker_modspace_id = 0xd99;
 	const RE::FormID g_player = 0x14;
 
 	std::string mod_name = backpack::g_mod_name;
+	int         g_esp_index = 0;
 
 	RE::TESBoundObject* g_backpack_obj;
 	PapyrusVRAPI*       g_papyrusvr;
@@ -78,10 +79,35 @@ namespace backpackvr
 		return true;
 	}
 
-	void OnUpdate()
+	bool NewDebugTestButton(const vrinput::ModInputEvent& e)
 	{
-		backpack::Controller::GetSingleton()->PostWandUpdate();
+		if (e.button_state == vrinput::ButtonState::kButtonUp)
+		{
+			//vr_gui::Controller::GetSingleton()->DebugTestBackpack();
+		}
+		return true;
+	}
+
+	void PostWandUpdate()
+	{
+		//backpack::Controller::GetSingleton()->PostWandUpdate();
+		vr_gui::Controller::GetSingleton()->Update();
 		art_addon::ArtAddonManager::GetSingleton()->Update();
+	}
+
+	bool InventoryDropTest(const vrinput::ModInputEvent& e)
+	{
+		if (e.button_state == vrinput::ButtonState::kButtonUp)
+		{
+			SKSE::log::trace("droptest");
+
+			auto dropped = PlayerCharacter::GetSingleton()->GetDroppedInventory();
+			for (auto& [a, b] : dropped) { SKSE::log::trace("{}", a->GetName()); }
+
+			//RE::PlayerCharacter::GetSingleton()->RemoveItem(
+			//	a_base_object, a_count, RE::ITEM_REMOVE_REASON::kDropping, a_extradata, nullptr);
+		}
+		return true;
 	}
 
 	void Init()
@@ -92,6 +118,7 @@ namespace backpackvr
 		ReadConfig(g_ini_path);
 
 		menuchecker::begin();
+
 		RegisterVRInputCallback();
 
 		RegisterButtons();
@@ -108,13 +135,14 @@ namespace backpackvr
 
 		/* input callbacks */
 
-		vrinput::AddCallback(debug_PrintInventoryExtraData,
-			vr::EVRButtonId::k_EButton_A, vrinput::Hand::kRight,
+		//vrinput::AddCallback(debug_PrintInventoryExtraData, vr::EVRButtonId::k_EButton_A,
+		//	vrinput::Hand::kRight, vrinput::ActionType::kPress);
+
+		//vrinput::AddCallback(OnDebugSummonButton, vr::EVRButtonId::k_EButton_Knuckles_B,
+		//	vrinput::Hand::kRight, vrinput::ActionType::kPress);
+
+		vrinput::AddCallback(InventoryDropTest, vr::k_EButton_SteamVR_Trigger, vrinput::Hand::kRight,
 			vrinput::ActionType::kPress);
-
-		vrinput::AddCallback(OnDebugSummonButton, vr::EVRButtonId::k_EButton_Knuckles_B,
-			vrinput::Hand::kRight, vrinput::ActionType::kPress);
-
 		/* HIGGS init */
 		if (g_higgsInterface)
 		{
@@ -149,10 +177,11 @@ namespace backpackvr
 				backpack::g_marker_disable_objref = ref;
 			}
 		}
+		else { _DEBUGLOG("ERROR obj ref not found: marker"); }
 
 		if (RE::PlayerCharacter::GetSingleton()->Is3DLoaded())
 		{
-			auto pcvr = RE::PlayerCharacter::GetSingleton()->GetVRNodeData();
+			auto pcvr = RE::PlayerCharacter::GetSingleton();
 			auto hand = pcvr->RightWandNode;
 			auto rollover = pcvr->RoomNode->GetObjectByName(g_rollover_nodename);
 
@@ -165,6 +194,8 @@ namespace backpackvr
 
 		backpack::Controller::GetSingleton()->Init();
 		backpack::Controller::GetSingleton()->Add(Backpack(g_backpack_player_objref_id, g_player));
+
+		vr_gui::Controller::GetSingleton()->Init();
 	}
 
 	void RegisterButtons()
@@ -281,6 +312,7 @@ namespace backpackvr
 		if (e.button_state == vrinput::ButtonState::kButtonDown)
 		{
 			auto pc = PlayerCharacter::GetSingleton();
+
 			if (auto cc = pc->GetContainer())
 			{
 				auto inv = pc->GetInventory();
@@ -313,6 +345,7 @@ namespace backpackvr
 				}
 			}
 		}
+
 		return false;
 	}
 }

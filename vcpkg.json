@@ -1,8 +1,14 @@
 {
   "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
   "name": "skyrimvr-backpack",
-  "version-string": "1.0.3b",
+  "version-string": "1.0.1",
   "dependencies": [
     "commonlibsse-ng-vr"
+  ],
+  "overrides": [
+    {
+      "name": "spdlog",
+      "version": "1.14.1"
+    }
   ]
 }

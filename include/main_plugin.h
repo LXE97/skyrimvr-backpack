@@ -11,6 +11,7 @@
 #include "menu_checker.h"
 #include "mod_event_sink.hpp"
 #include "vrinput.h"
+#include "vr_gui.h"
 
 #define _DEBUGLOG(...) \
 	if (backpackvr::g_debug_print) { SKSE::log::trace(__VA_ARGS__); }
@@ -23,12 +24,13 @@ namespace backpackvr
 	extern bool          g_left_hand_mode;
 	extern bool          g_use_firstperson;
 	extern bool          g_debug_print;
+	extern int g_esp_index;
 
 	void Init();
 
 	void OnGameLoad();
 
-	void OnUpdate();
+	void PostWandUpdate();
 
 	void OnContainerChanged(const RE::TESContainerChangedEvent* event);
 

@@ -22,6 +22,7 @@ namespace backpack
 	extern RE::NiMatrix3      g_rollover_default_hand_rot;
 	extern float              g_default_factivatepicklength;
 
+	class Controller;
 	class Backpack;
 	class Item;
 	class View;
@@ -309,17 +310,19 @@ namespace backpack
 				object = form->AsReference();
 				SKSE::log::trace("backpack object found: {}", ref_id);
 			}
+			else { SKSE::log::error("Backpack object missing"); }
 			if (auto form = helper::GetForm(wearer_ref_id, "Skyrim.esm"))
 			{
 				wearer = form->AsReference();
 				SKSE::log::trace("backpack wearer found: {}", wearer_ref_id);
 			}
+			else { SKSE::log::error("Invalid backpack wearer"); }
 			if (object)
 			{
 				base = object->GetObjectReference();
 				object->SetActivationBlocked(true);
 			}
-			views.clear();
+
 			SKSE::log::trace("backpack created for {}", wearer_ref_id);
 		};
 		Backpack(const Backpack&) = delete;
@@ -397,7 +400,6 @@ namespace backpack
 		RE::TESObjectREFR* GetWearer() const { return wearer; }
 		const RE::FormID   GetWearerID() const { return wearer_ref_id; }
 
-		/* Attempts to add an item to the currently active View and the wearer's inventory */
 		RE::TESBoundObject* GetDefaultBase() const { return base; }
 
 		void MoveGrabbed();
@@ -423,6 +425,8 @@ namespace backpack
 		{
 			return object && object->Is3DLoaded() && wearer && wearer->Is3DLoaded();
 		}
+
+		void SetScale(float a_new_scale);
 		/*
 		const bool IsIgnoredItem(RE::TESBoundObject* a_obj)
 		{
@@ -433,12 +437,14 @@ namespace backpack
 */
 
 	private:
-		RE::TESObjectREFR*                 object;
-		RE::TESObjectREFR*                 wearer;
+		RE::TESObjectREFR*                 object = nullptr;
+		RE::TESObjectREFR*                 wearer = nullptr;
+		RE::TESObjectREFR*                 activator = nullptr;
 		RE::FormID                         ref_id;
 		RE::FormID                         wearer_ref_id;
 		RE::TESBoundObject*                base;
 		std::vector<std::unique_ptr<View>> views;
+		float                              scale = 1.0f;
 		State                              state = State::kDisabled;
 	};
 
@@ -484,12 +490,21 @@ namespace backpack
 			event_queue.clear();
 			selected_backpack[0] = nullptr;
 			selected_backpack[1] = nullptr;
+
+			if (auto form = helper::GetForm(kActivatorID, g_mod_name))
+			{
+				activator = form->AsReference();
+				activator_default_base = activator->GetObjectReference();
+			}
+
 		}
 
 		void Add(Backpack&& a_new_backpack) { backpacks.emplace_back(std::move(a_new_backpack)); }
 
 		const Settings& GetSettings() { return settings; }
 		Settings&       SetSettings() { return settings; }
+
+		RE::TESObjectREFR* GetActivator() { return activator; }
 
 		Backpack* GetSelectedBackpack(bool isLeft) { return selected_backpack[isLeft]; }
 
@@ -529,6 +544,8 @@ namespace backpack
 		}
 
 	private:
+		RE::FormID kActivatorID = 0xD98;
+
 		Controller() = default;
 		~Controller() = default;
 		Controller(const Controller&) = delete;
@@ -561,6 +578,8 @@ namespace backpack
 		Backpack*              selected_backpack[2] = { nullptr };
 		bool                   ignore_next_container_add_event = false;
 		art_addon::ArtAddonPtr hand_effect[2];
+		RE::TESObjectREFR*     activator;
+		RE::TESBoundObject*    activator_default_base;
 
 		std::vector<NewItemEvent> pending_items;
 	};

@@ -7,7 +7,14 @@ namespace backpack
 	RE::NiPoint3       g_rollover_default_hand_pos = {};
 	RE::NiMatrix3      g_rollover_default_hand_rot = {};
 	RE::TESObjectREFR* g_marker_disable_objref = nullptr;
-	float              g_default_factivatepicklength = 180;
+	float              g_default_factivatepicklength = 20;
+
+#include <iostream>
+#include <random>
+
+	std::random_device               rd;               // Random device
+	std::mt19937                     gen(rd());        // Mersenne Twister engine
+	std::uniform_real_distribution<> dist(0.0, 10.0);  // Range: [0.0, 10.0)
 
 	// random
 	const uint16_t g_ID_upper = 51261;
@@ -20,7 +27,12 @@ namespace backpack
 	{
 		auto bp = std::find_if(backpacks.begin(), backpacks.end(),
 			[](const Backpack& obj) { return obj.GetWearerID() == kPlayerForm; });
-		if (bp != backpacks.end()) { bp->StateTransition(Backpack::State::kGrabbed); }
+		if (bp != backpacks.end())
+		{
+			SKSE::log::info("attempting to summon player backpack");
+			bp->StateTransition(Backpack::State::kGrabbed);
+		}
+		else { SKSE::log::info("player backpack suumon error"); }
 	}
 
 	void Controller::OnHiggsDrop(bool isLeft, RE::TESObjectREFR* droppedRefr)
@@ -119,6 +131,14 @@ namespace backpack
 			{
 				if (auto bound_obj = form->As<TESBoundObject>())
 				{
+					_DEBUGLOG("{} {} {}  |  {} {} {}", 
+						bound_obj->boundData.boundMax.x,
+						bound_obj->boundData.boundMax.y,
+						bound_obj->boundData.boundMax.z,
+						bound_obj->boundData.boundMin.x,
+						bound_obj->boundData.boundMin.y,
+						bound_obj->boundData.boundMin.z);
+
 					// Determine InventoryEntry
 					auto inv = bp->GetWearer()->GetInventory();
 					auto it = inv.find(bound_obj);
@@ -248,7 +268,7 @@ namespace backpack
 									break;
 								}
 								else if (destination = bp->GetViewByName(NormalView::kNodeName);
-										 destination)
+									destination)
 								{  // Auto-add to natural view
 									local.translate = ((NormalView*)destination)
 														  ->FindNextAvailableSlot(bound_obj);
@@ -378,6 +398,22 @@ namespace backpack
 	{
 		ProcessInput();
 		ProcessEvents();
+
+		// Update rollover UI
+		static bool reset_rollover = false;
+		if (rollover_override)
+		{
+			OverrideRolloverPosition();
+			reset_rollover = true;
+		}
+		else
+		{
+			if (reset_rollover)
+			{
+				reset_rollover = false;
+				ResetRolloverPosition();
+			}
+		}
 	}
 
 	void Controller::ProcessInput()
@@ -441,22 +477,6 @@ namespace backpack
 				default:
 					break;
 				}
-			}
-		}
-
-		// Update rollover UI
-		static bool reset_rollover = false;
-		if (rollover_override)
-		{
-			OverrideRolloverPosition();
-			reset_rollover = true;
-		}
-		else
-		{
-			if (reset_rollover)
-			{
-				reset_rollover = false;
-				ResetRolloverPosition();
 			}
 		}
 	}
@@ -613,14 +633,15 @@ namespace backpack
 			DisableActivator(a_activation_target);
 
 			// change the displayed item in the rollover UI
-			OverrideRolloverReference(objref, a_to_display_on_rollover);
+			OverrideRolloverReference(activator, a_to_display_on_rollover);
 
 			// move the rollover UI to the left hand if needed
 			if (isLeft) { SetRolloverUIPositionOverride(true); }
 
+			_DEBUGLOG("enabling activation collider for {}", a_to_display_on_rollover->GetName());
 			// move activator to hand
 			SKSE::GetTaskInterface()->AddTask(
-				[this, objref]() { this->MoveActivator(objref, true); });
+				[this, objref]() { this->MoveActivator(activator, true); });
 
 			//TODO : set activation distance to very small
 		}
@@ -632,7 +653,9 @@ namespace backpack
 		{
 			if (auto root = a_activation_target->GetObjectRefr()->GetCurrent3D())
 			{
-				MoveActivator(a_activation_target->GetObjectRefr(), false);
+				_DEBUGLOG("enabling activation collider for {}",
+					a_activation_target->GetObjectRefr()->GetName());
+				MoveActivator(activator, false);
 				ResetRolloverReference(a_activation_target);
 				SetRolloverUIPositionOverride(false);
 			}
@@ -647,13 +670,10 @@ namespace backpack
 		// check if player has a free hand
 		NiAVObject* hand = nullptr;
 		bool        isLeft = false;
-		if (g_higgsInterface->CanGrabObject(false))
-		{
-			hand = pc->GetVRNodeData()->RightWandNode.get();
-		}
+		if (g_higgsInterface->CanGrabObject(false)) { hand = pc->RightWandNode.get(); }
 		else if (g_higgsInterface->CanGrabObject(true))
 		{
-			hand = pc->GetVRNodeData()->LeftWandNode.get();
+			hand = pc->LeftWandNode.get();
 			isLeft = true;
 		}
 		if (hand)
@@ -802,9 +822,24 @@ namespace backpack
 		{
 		case State::kDisabled:
 			{  // do init
-				if (object) { object->MoveTo(RE::PlayerCharacter::GetSingleton()); }
+				if (object)
+				{
+					SKSE::log::trace("moving obj {} to player", object->formID);
+					object->MoveTo(RE::PlayerCharacter::GetSingleton());
+				}
 
-				Controller::GetSingleton()->DisableActivator(this);
+				Controller::GetSingleton()->GetActivator()->MoveTo(
+					RE::PlayerCharacter::GetSingleton());
+
+				SKSE::GetTaskInterface()->AddTask([]() {
+					if (auto ref = Controller::GetSingleton()->GetActivator())
+					{
+						ref->data.angle = RE::NiPoint3();
+					}
+				});
+
+				//Controller::GetSingleton()->DisableActivator(this);
+
 				// parse nif for views, populate items
 				Init();
 			}
@@ -821,7 +856,13 @@ namespace backpack
 		case State::kDisabled:
 			{  // do shut off cleanup
 				views.clear();
-				if (g_marker_disable_objref) { object->MoveTo(g_marker_disable_objref); }
+				if (g_marker_disable_objref)
+				{
+					auto _activator = activator;
+
+					Controller::GetSingleton()->GetActivator()->MoveTo(g_marker_disable_objref);
+					object->MoveTo(g_marker_disable_objref);
+				}
 			}
 			break;
 		case State::kIdle:
@@ -864,6 +905,23 @@ namespace backpack
 				{
 					const auto& entry = mapitem.second.second;
 					int         count = mapitem.second.first;
+					/*
+					if (auto model = helper::GetObjectModelPath(entry->object); model)
+					{
+						
+
+
+						
+						for (auto& view : views)
+						{
+							RE::NiTransform temp;
+
+							temp.translate = { (float)dist(gen), (float)dist(gen), (float)dist(gen) };
+							view->AddItem(Item(entry->object,1,nullptr,
+							art_addon::ArtAddon::Make(model, object, root, temp)));
+						}
+					}
+*/
 
 					if (auto extra = entry->extraLists)
 					{
@@ -941,8 +999,8 @@ namespace backpack
 	{
 		if (model && model->Get3D())
 		{
-			auto dist = model->Get3D()->worldBound.center.GetDistance(a_world_pos);
-			if (dist < model->Get3D()->worldBound.radius) { return dist; }
+			auto ddist = model->Get3D()->worldBound.center.GetDistance(a_world_pos);
+			if (ddist < model->Get3D()->worldBound.radius) { return ddist; }
 		}
 		return -1.f;
 	}
@@ -965,9 +1023,9 @@ namespace backpack
 		for (auto& i : items)
 		{
 			// broad phase
-			if (float dist = i.CheckOverlap(a_world_pos); dist > 0)
+			if (float ddist = i.CheckOverlap(a_world_pos); ddist > 0)
 			{
-				narrow.push_back(std::make_pair(dist, &i));
+				narrow.push_back(std::make_pair(ddist, &i));
 			}
 			else { i.SetState(isLeft, Item::State::kIdle); }
 		}
@@ -1136,10 +1194,8 @@ namespace backpack
 				{
 					RE::NiUpdateData ctx;
 
-					auto handpos = RE::PlayerCharacter::GetSingleton()
-									   ->GetVRNodeData()
-									   ->LeftWandNode.get()
-									   ->world.translate;
+					auto handpos =
+						RE::PlayerCharacter::GetSingleton()->LeftWandNode.get()->world.translate;
 
 					backpacknode->local.translate = handpos;
 
@@ -1155,12 +1211,22 @@ namespace backpack
 		}
 	}
 
+	void Backpack::SetScale(float a_new_scale)
+	{
+		scale = a_new_scale;
+		if (IsValid())
+		{
+			RE::NiUpdateData ctx;
+			object->Get3D()->world.scale = a_new_scale;
+			object->Get3D()->Update(ctx);
+		}
+	}
+
 	/* Helper functions for managing rollover text */
 	void Controller::ResetRolloverPosition()
 	{
 		if (auto rollover_node =
-				PlayerCharacter::GetSingleton()->GetVRNodeData()->RoomNode->GetObjectByName(
-					g_rollover_nodename))
+				PlayerCharacter::GetSingleton()->RoomNode->GetObjectByName(g_rollover_nodename))
 		{
 			rollover_node->local.translate = g_rollover_default_hand_pos;
 			rollover_node->local.rotate = g_rollover_default_hand_rot;
@@ -1172,11 +1238,11 @@ namespace backpack
 
 	void Controller::OverrideRolloverPosition()
 	{
-		auto pcvr = PlayerCharacter::GetSingleton()->GetVRNodeData();
+		auto pc = PlayerCharacter::GetSingleton();
 
-		if (auto rollover_node = pcvr->RoomNode->GetObjectByName(g_rollover_nodename))
+		if (auto rollover_node = pc->RoomNode->GetObjectByName(g_rollover_nodename))
 		{
-			auto hand = pcvr->LeftWandNode;
+			auto hand = pc->LeftWandNode;
 
 			auto desired_world =
 				hand->world.translate + hand->world.rotate * g_rollover_default_hand_pos;
@@ -1189,44 +1255,45 @@ namespace backpack
 
 			NiUpdateData ctx;
 			rollover_node->Update(ctx);
+
+			// in case the right hand has moved away from the activator
+			MoveActivator(activator, true);
 		}
 	}
 
 	void Controller::ResetRolloverReference(Backpack* a_target)
 	{
-		if (a_target) { a_target->GetObjectRefr()->SetObjectReference(a_target->GetDefaultBase()); }
+		if (a_target) { activator->SetObjectReference(activator_default_base); }
 	}
 
 	void Controller::OverrideRolloverReference(
 		RE::TESObjectREFR* a_target, RE::TESBoundObject* a_new_base_object)
 	{
-		if (a_target && a_new_base_object) { a_target->SetObjectReference(a_new_base_object); }
+		if (a_target && a_new_base_object) { activator->SetObjectReference(a_new_base_object); }
 	}
 
 	void Controller::MoveActivator(RE::TESObjectREFR* a_objref, bool a_enabled)
 	{
-		/* this is a total hack job but I can't figure out how to change collision layer on phantom shapes
-		* or move rigidbodies without using MoveTo() */
 		constexpr const char* collision_node_name = "CollisionNode";
 
-		if (auto root = a_objref->GetCurrent3D())
+		if (auto root = activator->GetCurrent3D())
 		{
 			if (auto collider = root->GetObjectByName(collision_node_name))
 			{
+				RE::NiUpdateData ctx;
 				if (a_enabled)
 				{
-					auto handloc = PlayerCharacter::GetSingleton()
-									   ->GetVRNodeData()
-									   ->RightWandNode->world.translate;
+					auto handloc = PlayerCharacter::GetSingleton()->RightWandNode->world.translate;
+
 					collider->local.translate = collider->parent->world.rotate.Transpose() *
 						(handloc - collider->parent->world.translate);
 
-					_DEBUGLOG("enabling activation collider for {}", a_objref->GetName());
+					collider->Update(ctx);
 				}
 				else
 				{
-					collider->local.translate.z = 1000;
-					_DEBUGLOG("enabling activation collider for {}", a_objref->GetName());
+					collider->local.translate.z = 500;
+					collider->Update(ctx);
 				}
 			}
 		}

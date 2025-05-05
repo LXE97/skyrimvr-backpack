@@ -3,27 +3,26 @@
 namespace hooks
 {
 
-	void PostWandUpdateHook() { backpackvr::OnUpdate(); }
+	void PostWandUpdateHook() { backpackvr::PostWandUpdate(); }
 
 	// thanks to FlyingParticle for this code
-	uintptr_t postWandUpdateHookedFuncAddr = 0;
 	// A call shortly after the Higgs call shortly after the wand nodes are updated as part of Main::Draw()
 	auto postWandUpdateHookLoc = RelocAddr<uintptr_t>(0x13233C7);
 	auto postWandUpdateHookedFunc = RelocAddr<uintptr_t>(0xDCF900);
 
 	void Install()
 	{
-		postWandUpdateHookedFuncAddr = postWandUpdateHookedFunc.GetUIntPtr();
 		{
 			struct Code : Xbyak::CodeGenerator
 			{
 				Code()
 				{
-					Xbyak::Label jumpBack;
+                    Xbyak::Label hookLabel;
+					Xbyak::Label hookedFuncLabel;
+                    Xbyak::Label retnLabel;
 
 					// Original code
-					mov(rax, postWandUpdateHookedFuncAddr);
-					call(rax);
+					call(ptr[rip + hookedFuncLabel]);
 
 					push(rax);
 					// Need to keep the stack 16 byte aligned, and an additional 0x20 bytes for scratch space
@@ -31,18 +30,17 @@ namespace hooks
 					movsd(ptr[rsp + 0x20], xmm0);
 
 					// Call our hook
-					mov(rax, (uintptr_t)PostWandUpdateHook);
-					call(rax);
+					call(ptr[rip + hookLabel]);
 
 					movsd(xmm0, ptr[rsp + 0x20]);
 					add(rsp, 0x38);
 					pop(rax);
 
-					// Jump back to whence we came (+ the size of the initial branch instruction)
-					jmp(ptr[rip + jumpBack]);
+					jmp(ptr[rip + retnLabel]);
 
-					L(jumpBack);
-					dq(postWandUpdateHookLoc.GetUIntPtr() + 5);
+                    L(hookLabel), dq(reinterpret_cast<uintptr_t>(&PostWandUpdateHook));
+					L(hookedFuncLabel), dq(postWandUpdateHookedFunc);
+                    L(retnLabel), dq(postWandUpdateHookLoc + 5);
 				}
 			};
 			Code code;
