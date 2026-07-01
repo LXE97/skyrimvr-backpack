@@ -15,5 +15,5 @@ RelocationManager::RelocationManager()
 	// SKSE::WinAPI::GetModuleHandle(const char* a_moduleName) noexcept;
 	// SKSE::WinAPI::GetModuleHandle(const wchar_t* a_moduleName) noexcept;
 
-	s_baseAddr = reinterpret_cast<uintptr_t>(GetModuleHandle((char*)NULL));
+	s_baseAddr = reinterpret_cast<uintptr_t>(GetModuleHandle(nullptr));
 }

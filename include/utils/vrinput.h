@@ -1,7 +1,5 @@
 #pragma once
 #include "VR/PapyrusVRAPI.h"
-#include "helper_math.h"
-#include "xbyak/xbyak.h"
 
 namespace vrinput
 {
@@ -9,24 +7,22 @@ namespace vrinput
 	constexpr const char* kRightHandNodeName = "NPC R Hand [RHnd]";
 	constexpr const char* kControllerNodeName[2] = { kRightHandNodeName, kLeftHandNodeName };
 
-	extern RE::NiPoint3 g_palm_offset;
-
 	constexpr std::array all_buttons{
-		vr::k_EButton_System,
-		vr::k_EButton_Knuckles_B,
-		vr::k_EButton_Grip,
-		vr::k_EButton_A,
-		vr::k_EButton_SteamVR_Touchpad,  // this is the joystick for index  check oculus
-		vr::k_EButton_SteamVR_Trigger,
+		vr::EVRButtonId::k_EButton_System,
+		vr::EVRButtonId::k_EButton_ApplicationMenu,
+		vr::EVRButtonId::k_EButton_Grip,
+		vr::EVRButtonId::k_EButton_A,
+		vr::EVRButtonId::k_EButton_SteamVR_Touchpad,  // this is the joystick for index  check oculus
+		vr::EVRButtonId::k_EButton_SteamVR_Trigger,
 	};
 
 	/* opencomposite automatically generates dpad events for joystick movement, but SteamVR doesn't,
 	* so these are treated separately and generated from joystick axes internally */
 	constexpr std::array dpad{
-		vr::k_EButton_DPad_Left,
-		vr::k_EButton_DPad_Up,
-		vr::k_EButton_DPad_Right,
-		vr::k_EButton_DPad_Down,
+		vr::EVRButtonId::k_EButton_DPad_Left,
+		vr::EVRButtonId::k_EButton_DPad_Up,
+		vr::EVRButtonId::k_EButton_DPad_Right,
+		vr::EVRButtonId::k_EButton_DPad_Down,
 	};
 
 	enum class Hand
@@ -74,6 +70,9 @@ namespace vrinput
 	void StartSmoothing();
 	void StopSmoothing();
 
+	void BlockAxis(bool isLeft);
+	void UnBlockAxis(bool isLeft);
+
 	/* returns the state of the specified button's action type */
 	ButtonState GetButtonState(
 		vr::EVRButtonId a_button_ID, Hand a_hand, ActionType a_touch_or_press);
@@ -82,9 +81,7 @@ namespace vrinput
 	const vr::VRControllerAxis_t& GetJoystick(Hand a);
 
 	inline Hand GetOtherHand(Hand a)
-	{
-		return a == Hand::kRight ? Hand::kLeft : (a == Hand::kLeft ? Hand::kRight : Hand::kBoth);
-	}
+	{ return a == Hand::kRight ? Hand::kLeft : (a == Hand::kLeft ? Hand::kRight : Hand::kBoth); }
 
 	inline RE::NiAVObject* GetHandNode(Hand a_hand, bool a_first_person)
 	{
@@ -94,23 +91,6 @@ namespace vrinput
 				a_hand == Hand::kRight ? kRightHandNodeName : kLeftHandNodeName);
 		}
 		return nullptr;
-	}
-
-	inline RE::NiAVObject* GetHandNode(bool isLeft, bool a_first_person)
-	{
-		if (auto pc3d = RE::PlayerCharacter::GetSingleton()->Get3D(a_first_person))
-		{
-			return pc3d->GetObjectByName(isLeft ? kLeftHandNodeName : kRightHandNodeName);
-		}
-		return nullptr;
-	}
-
-	inline const RE::NiPoint3 GetHandPosition(bool isLeft, bool a_first_person)
-	{
-		if (auto node = GetHandNode(isLeft, a_first_person)) {
-			return node->world.translate + (node->world.rotate * g_palm_offset);
-		}
-		return RE::NiPoint3::Zero();
 	}
 
 	/* Adds a function to the list of callbacks for a specific button. The callback will be triggered
@@ -150,7 +130,7 @@ namespace vrinput
 
 	void InitControllerHooks();
 
-	void Vibrate(bool isLeft, const std::vector<uint16_t>* keyframes = nullptr, float a_power = 1.f, bool loop = false);
+	void Vibrate(bool isLeft, std::vector<uint16_t>* keyframes, float a_power = 1.f);
 
 	/* This needs to be fed to OVRHookManager::RegisterControllerStateCB() */
 	bool ControllerInputCallback(vr::TrackedDeviceIndex_t unControllerDeviceIndex,

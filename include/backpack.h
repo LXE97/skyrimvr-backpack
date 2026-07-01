@@ -1,5 +1,4 @@
 #pragma once
-#include "NiVectorExtraData.h"
 #include "animations.h"
 #include "art_addon.h"
 #include "helper_game.h"

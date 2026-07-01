@@ -1,16 +1,36 @@
 cmake_minimum_required(VERSION 3.21)
 
-project(BackpackVR VERSION 1.0.1 LANGUAGES CXX)
+project(BackpackVR VERSION 1.0.0 LANGUAGES CXX)
 
 # Destination to copy .dll
-if(DEFINED ENV{SKYRIM_FOLDER} AND IS_DIRECTORY "$ENV{SKYRIM_FOLDER}/Data")
-    set(OUTPUT_FOLDER "C:/FUS5/mods/Backpack VR/SKSE/Plugins")
+if(DEFINED ENV{SKYRIM_FOLDER} AND IS_DIRECTORY "$ENV{SKYRIM_FOLDER}")
+    set(OUTPUT_FOLDER "$ENV{SKYRIM_FOLDER}/${PROJECT_NAME}/SKSE/Plugins")
 endif()
+
+set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
+set(BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(ENABLE_SKYRIM_SE OFF CACHE BOOL "" FORCE)
+set(ENABLE_SKYRIM_AE OFF CACHE BOOL "" FORCE)
+set(ENABLE_SKYRIM_VR ON CACHE BOOL "" FORCE)
+set(SKSE_SUPPORT_XBYAK ON CACHE BOOL "" FORCE)
+
+add_subdirectory(lib/commonlibsse-ng)
 
 file(GLOB_RECURSE source_files src/*.cpp external/*.cpp)
 
-find_package(CommonLibSSE CONFIG REQUIRED)
-add_commonlibsse_plugin(${PROJECT_NAME} SOURCES ${source_files} main.cpp)
+include(${CMAKE_CURRENT_SOURCE_DIR}/lib/commonlibsse-ng/cmake/CommonLibSSE.cmake)
+
+add_commonlibsse_plugin(${PROJECT_NAME}
+	SOURCES
+		${source_files}
+		main.cpp
+)
+
+target_link_libraries(${PROJECT_NAME}
+	PUBLIC
+		CommonLibSSE::CommonLibSSE
+)
+
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_23)
 target_precompile_headers(${PROJECT_NAME} PRIVATE PCH.h)
 target_include_directories(${PROJECT_NAME} PRIVATE include external include/utils)
@@ -38,7 +58,7 @@ target_link_options(
 
 if(DEFINED OUTPUT_FOLDER)
     # Copy the SKSE plugin .dll files into the SKSE/Plugins/ folder
-    message(STATUS "SKSE plugin output folder: ${DLL_FOLDER}")
+    message(STATUS "SKSE plugin output folder: ${OUTPUT_FOLDER}")
 
     add_custom_command(
         TARGET "${PROJECT_NAME}"

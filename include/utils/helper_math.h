@@ -6,59 +6,67 @@
 
 namespace helper
 {
-    using namespace RE;
+	using namespace RE;
 
-    const bool TestBoxCollision(NiTransform& a_origin, NiPoint3& a_extent, NiPoint3& a_collider);
+	inline float ComputeRadius(const RE::NiPoint3& e)
+	{ return std::sqrt(e.x * e.x + e.y * e.y + e.z * e.z); }
 
-    RE::NiColor HSV_to_RGB(float h, float s, float v);
+	const bool TestBoxCollision(NiTransform& a_origin, NiPoint3& a_extent, NiPoint3& a_collider);
 
-    RE::NiPoint3 RGBtoHSV(NiColor rgb);
+	RE::NiColor HSV_to_RGB(float h, float s, float v);
 
-    RE::NiPoint3 RGBtoHSV(NiColorA rgb);
+	RE::NiPoint3 RGBtoHSV(NiColor rgb);
 
-    float deg2rad(const float d);
+	RE::NiPoint3 RGBtoHSV(NiColorA rgb);
 
- void Arrayize(int idx, int row, int col, int &x_out, int &y_out);
+	float deg2rad(const float d);
 
-    float GetAzimuth(NiMatrix3& rot);
+	void Arrayize(int idx, int row, int col, int& x_out, int& y_out);
 
-    RE::NiTransform WorldToLocal(RE::NiTransform& a_parent, RE::NiTransform& a_child);
-    RE::NiPoint3    WorldToLocalPos(RE::NiTransform& a_parent, RE::NiPoint3 const& a_child);
+	float GetAzimuth(NiMatrix3& rot);
 
-    float GetElevation(NiMatrix3& rot);
+	RE::NiTransform WorldToLocal(RE::NiTransform& a_parent, RE::NiTransform& a_child);
+	RE::NiPoint3    WorldToLocalPos(RE::NiTransform& a_parent, RE::NiPoint3 const& a_child);
 
-    float VectorLengthSquared(const NiPoint3& vec);
+	float GetElevation(NiMatrix3& rot);
 
-    float VectorLength(const NiPoint3& vec);
+	float VectorLengthSquared(const NiPoint3& vec);
 
-    float DotProductSafe(const NiPoint3& vec1, const NiPoint3& vec2);
+	float VectorLength(const NiPoint3& vec);
 
-    NiPoint3 VectorNormalized(const NiPoint3& vec);
+	float DotProductSafe(const NiPoint3& vec1, const NiPoint3& vec2);
 
-    NiMatrix3 getRotationAxisAngle(NiPoint3& axis, float theta);
+	NiPoint3 VectorNormalized(const NiPoint3& vec);
 
-    NiMatrix3 RotateBetweenVectors(const NiPoint3& src, const NiPoint3& dest);
+	NiMatrix3 getRotationAxisAngle(NiPoint3& axis, float theta);
 
-    void FaceCamera(RE::NiAVObject* a_target, bool a_x = false, bool a_y = false, bool a_z = true,
-        RE::NiPoint3 a_target_normal = { 1.0, 0.0, 0.0 });
+	NiMatrix3 RotateBetweenVectors(const NiPoint3& src, const NiPoint3& dest);
 
-    NiMatrix3 slerpMatrixAdaptive(NiMatrix3 mat1, NiMatrix3 mat2);
+	void FaceCamera(RE::NiAVObject* a_target, bool a_x = false, bool a_y = false, bool a_z = true,
+		RE::NiPoint3 a_target_normal = { 1.0, 0.0, 0.0 });
 
-    void Quat2Mat(NiMatrix3& matrix, NiQuaternion& quaternion);
+	NiMatrix3 slerpMatrixAdaptive(NiMatrix3 mat1, NiMatrix3 mat2);
 
-    void slerpQuat(float interp, NiQuaternion& q1, NiQuaternion& q2, NiMatrix3& out);
+	void Quat2Mat(NiMatrix3& matrix, NiQuaternion& quaternion);
 
-    RE::NiPoint2 Rotate2D(RE::NiPoint2 v, float angle);
+	void slerpQuat(float interp, NiQuaternion& q1, NiQuaternion& q2, NiMatrix3& out);
 
-    bool IntersectSphereSphere(
-        const NiPoint3& centerA, float radiusA, const NiPoint3& centerB, float radiusB);
+	RE::NiPoint2 Rotate2D(RE::NiPoint2 v, float angle);
 
-    // Sphere-to-OBB intersection (approximate)
-    bool IntersectSphereOBB(const NiPoint3& sphereCenter, float sphereRadius,
-        const NiTransform& obbTransform, const NiPoint3& halfExtents);
+	bool IntersectSphereSphere(
+		const NiPoint3& centerA, float radiusA, const NiPoint3& centerB, float radiusB);
 
-    bool IntersectOBBOBB(
-        const NiTransform& a, const NiPoint3& aExt, const NiTransform& b, const NiPoint3& bExt);
+	// Sphere-to-OBB intersection (approximate)
+	bool IntersectSphereOBB(const NiPoint3& sphereCenter, float sphereRadius,
+		const NiTransform& obbTransform, const NiPoint3& halfExtents);
 
+	bool IntersectOBBOBB(
+		const NiTransform& a, const NiPoint3& aExt, const NiTransform& b, const NiPoint3& bExt);
+
+	RE::NiPoint3 GetRow(const RE::NiMatrix3& m, int r);
+
+	void SetRow(RE::NiMatrix3& m, int r, const RE::NiPoint3& v);
+
+	RE::NiMatrix3 RemovePitchRoll(const RE::NiMatrix3& a_rot);
 
 }
